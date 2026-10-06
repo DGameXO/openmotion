@@ -22,12 +22,46 @@ const MIME_TYPES = {
   ".svg": "image/svg+xml"
 };
 
+// local effect catalog (id -> file in effects/)
+let effectIndex = null;
+function loadEffectIndex() {
+  if (!effectIndex) {
+    try {
+      effectIndex = JSON.parse(fs.readFileSync(path.join(PUBLIC_DIR, "effect-index.json"), "utf8"));
+    } catch (e) {
+      effectIndex = {};
+    }
+  }
+  return effectIndex;
+}
+
 const server = http.createServer((req, res) => {
   const parsedUrl = url.parse(req.url);
   let pathname = decodeURIComponent(parsedUrl.pathname);
   if (pathname === "/") pathname = "/index.html";
 
   const localPath = path.join(PUBLIC_DIR, pathname);
+
+  // Serve effect XML from local catalog (id -> file in effects/)
+  if (pathname === "/api/effect-xml") {
+    const params = new URLSearchParams(parsedUrl.query || "");
+    const effectId = params.get("id");
+    if (effectId) {
+      const idx = loadEffectIndex();
+      const file = idx[effectId] || (effectId.includes(".") ? idx[effectId.split(".").pop()] : null);
+      if (file) {
+        const full = path.join(PUBLIC_DIR, "effects", file);
+        if (fs.existsSync(full) && fs.statSync(full).isFile()) {
+          res.writeHead(200, {
+            "Content-Type": "application/xml",
+            "Cache-Control": "no-store",
+            "X-Effect-File": file
+          });
+          return fs.createReadStream(full).pipe(res);
+        }
+      }
+    }
+  }
 
   // Check if effect binary exists in local cache
   if (pathname === "/api/effect-bin") {

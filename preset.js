@@ -5805,6 +5805,112 @@ function bind4() {
       let iEl = document.createElement('i');
       iEl.className = "tl-kf" + (val12 <= val7 || val12 >= val8 ? " tl-kf-edge" : ''), iEl.style.left = val13 + 'px', divEl4.appendChild(iEl);
     }
+    let dragBase0 = d,
+      dragStart0 = a.startTime || 0,
+      dragEnd0 = a.endTime != null ? a.endTime : (val.totalTime || 0),
+      mkEdge = (cls, side) => {
+        let edgeEl = document.createElement("i");
+        edgeEl.className = "tl-edge " + cls;
+        edgeEl.title = side === "r" ? "Geser akhir layer" : "Geser awal layer";
+        edgeEl.addEventListener("click", ev2 => ev2.stopPropagation());
+        edgeEl.addEventListener("pointerdown", ev2 => {
+          if (ev2.button != null && ev2.button !== 0) return;
+          ev2.preventDefault(), ev2.stopPropagation();
+          try { edgeEl.setPointerCapture(ev2.pointerId); } catch {}
+          let snapBefore = sceneSnapshot();
+          let x0 = ev2.clientX, scale0 = compute11(), s0 = a.startTime || dragStart0,
+            e0 = a.endTime != null ? a.endTime : dragEnd0, moved = false;
+          let applyLive = () => {
+            divEl4.style.left = Math.round((dragBase0 + (a.startTime || 0)) * scale0) + 'px';
+            divEl4.style.width = Math.max(4, Math.round(((a.endTime || 0) - (a.startTime || 0)) * scale0)) + 'px';
+          };
+          let onMove = m => {
+            let dx = (m.clientX - x0) / scale0;
+            moved = Math.abs(m.clientX - x0) > 2;
+            if (side === "r") a.endTime = Math.max(s0 + 100, Math.min(val.totalTime || 1e9, e0 + dx));
+            else a.startTime = Math.max(0, Math.min(e0 - 100, s0 + dx));
+            moved && applyLive();
+          };
+          let onUp = () => {
+            window.removeEventListener("pointermove", onMove), window.removeEventListener("pointerup", onUp), window.removeEventListener("pointercancel", onUp);
+            if (!moved) {
+              a.startTime = s0, a.endTime = e0;
+              return;
+            }
+            pushUndo(snapBefore);
+            V = true;
+            handle9("[EDIT] Layer \"" + (a.label || a.id) + "\" durasi " + Math.round(s0) + "→" + Math.round(e0) + " ms  (" + Math.round(a.startTime) + "–" + Math.round(a.endTime) + " ms)");
+            bind4(), val2 && val2.renderAt(H);
+          };
+          window.addEventListener("pointermove", onMove), window.addEventListener("pointerup", onUp), window.addEventListener("pointercancel", onUp);
+        }, { passive: false });
+        return edgeEl;
+      };
+    divEl4.appendChild(mkEdge("tl-edge-l", "l")), divEl4.appendChild(mkEdge("tl-edge-r", "r"));
+    divEl4.addEventListener("pointerdown", ev2 => {
+      if (ev2.button != null && ev2.button !== 0) return;
+      if (ev2.target && ev2.target.classList && ev2.target.classList.contains("tl-edge")) return;
+      let snapT = sceneSnapshot(), x0 = ev2.clientX, scaleT = compute11(),
+        s0 = a.startTime || 0, e0 = a.endTime != null ? a.endTime : (val.totalTime || 0), moved = false;
+      const onMove = m => {
+        let dx = m.clientX - x0;
+        if (!moved && Math.abs(dx) < 5) return;
+        moved = Math.abs(dx) >= 5;
+        if (!moved) return;
+        let dur = e0 - s0, total = val.totalTime || 0,
+          ns = Math.max(0, Math.min(total - dur, s0 + dx / scaleT));
+        a.startTime = ns, a.endTime = ns + dur;
+        divEl4.style.left = Math.round((dragBase0 + ns) * scaleT) + "px";
+      };
+      const onUp = () => {
+        window.removeEventListener("pointermove", onMove), window.removeEventListener("pointerup", onUp);
+        if (!moved) return;
+        pushUndo(snapT), V = true;
+        handle9("[EDIT] Layer \"" + (a.label || a.id) + "\" dipindah ke " + Math.round(a.startTime) + " ms");
+        bind4(), val2 && val2.renderAt(H);
+      };
+      window.addEventListener("pointermove", onMove), window.addEventListener("pointerup", onUp);
+    }, { passive: false });
+    divEl2.addEventListener("pointerdown", ev2 => {
+      if (ev2.button != null && ev2.button !== 0) return;
+      if (ev2.target && ev2.target.closest && ev2.target.closest("button, .tl-thumb, .tl-edge")) return;
+      let snapT = sceneSnapshot(), y0 = ev2.clientY, active = false;
+      const onMove = m => {
+        let dy = m.clientY - y0;
+        if (!active && Math.abs(dy) < 7) return;
+        if (!active) {
+          active = true, divEl.classList.add("tl-reorder"), divEl.style.zIndex = "6";
+        }
+        divEl.style.transform = "translateY(" + dy + "px)";
+      };
+      const onUp = m => {
+        window.removeEventListener("pointermove", onMove), window.removeEventListener("pointerup", onUp);
+        divEl.classList.remove("tl-reorder"), divEl.style.transform = "", divEl.style.zIndex = "";
+        if (!active) return;
+        let arr = findParentArray(a);
+        if (!arr || arr.length < 2) return;
+        let rows = [...document.querySelectorAll(".tl-track")].filter(r => r.__layer && findParentArray(r.__layer) === arr && r !== divEl);
+        if (!rows.length) return;
+        let pos = 0;
+        for (; pos < rows.length; pos++) {
+          let rc = rows[pos].getBoundingClientRect();
+          if (m.clientY < rc.top + rc.height / 2) break;
+        }
+        let domOrder = rows.map(r => r.__layer);
+        domOrder.splice(pos, 0, a);
+        let newArr = domOrder.slice().reverse().filter(l => arr.indexOf(l) >= 0);
+        arr.forEach(l => {
+          newArr.indexOf(l) < 0 && newArr.push(l);
+        });
+        if (newArr.length !== arr.length) return;
+        let oldIdx = arr.indexOf(a), newIdx = newArr.indexOf(a);
+        if (oldIdx === newIdx) return;
+        pushUndo(snapT), arr.splice(0, arr.length, ...newArr), V = true;
+        handle9("[EDIT] Layer \"" + (a.label || a.id) + "\" urutan " + (oldIdx + 1) + " → " + (newIdx + 1));
+        bind4(), val2 && val2.renderAt(H);
+      };
+      window.addEventListener("pointermove", onMove), window.addEventListener("pointerup", onUp);
+    }, { passive: false });
     res11.length && (divEl4.title = val10 + " - " + res11.length + " keyframe"), divEl4.addEventListener("click", () => apply13(a, b)), divEl2.addEventListener("click", () => {
       apply13(a, b), process22(val7);
     }), divEl3.appendChild(divEl4), divEl.appendChild(divEl2), divEl.appendChild(divEl3), timelineTracks.appendChild(divEl), get13(a) && Ie.has(res7) && [...a.scene.layers].reverse().forEach((a2, b2) => {
@@ -8016,27 +8122,107 @@ var ctxTarget = null,
 function closeLayerCtx() {
   ctxMenu && (ctxMenu.remove(), ctxMenu = null), ctxTarget = null;
 }
+function cloneLayerSafe(layer) {
+  try {
+    return structuredClone(layer);
+  } catch (e) {
+    return JSON.parse(JSON.stringify(layer));
+  }
+}
+function splitLayerAt(layer) {
+  const arr = findParentArray(layer);
+  if (!arr) return handle9("[EDIT] split: urutan layer tidak ditemukan");
+  const s = layer.startTime || 0,
+    e = layer.endTime != null ? layer.endTime : (val.totalTime || 0),
+    t = H;
+  if (t <= s + 50 || t >= e - 50) return handle9("[EDIT] split: geser playhead dulu ke dalam layer (±50ms dari ujung)");
+  const snap = sceneSnapshot(), copy = cloneLayerSafe(layer);
+  copy.startTime = t, layer.endTime = t;
+  const i = arr.indexOf(layer);
+  i >= 0 && arr.splice(i + 1, 0, copy);
+  pushUndo(snap), V = true;
+  handle9("[EDIT] Split \"" + (layer.label || layer.id) + "\" di " + Math.round(t) + " ms");
+  bind4(), val2 && val2.renderAt(H);
+}
+function duplicateLayer(layer) {
+  const arr = findParentArray(layer);
+  if (!arr) return;
+  const snap = sceneSnapshot(), copy = cloneLayerSafe(layer);
+  const i = arr.indexOf(layer);
+  i >= 0 ? arr.splice(i + 1, 0, copy) : arr.push(copy);
+  pushUndo(snap), V = true;
+  handle9("[EDIT] Duplikat layer \"" + (layer.label || layer.id) + "\"");
+  bind4(), val2 && val2.renderAt(H);
+}
+function deleteLayer(layer) {
+  const arr = findParentArray(layer);
+  if (!arr) return;
+  const i = arr.indexOf(layer);
+  if (i < 0) return;
+  const snap = sceneSnapshot();
+  arr.splice(i, 1), pushUndo(snap), V = true;
+  handle9("[EDIT] Hapus layer \"" + (layer.label || layer.id) + "\"");
+  bind4(), val2 && val2.renderAt(H);
+}
 function openLayerCtx(a, x2, y2) {
   closeLayerCtx(), ctxTarget = a;
   let menu = document.createElement("div");
-  menu.className = "tl-ctx", menu.style.left = Math.max(4, Math.min(x2, innerWidth - 210)) + 'px', menu.style.top = Math.max(4, Math.min(y2, innerHeight - 130)) + 'px';
-  let btn = document.createElement("button");
-  btn.type = "button", btn.textContent = "Ganti foto/video…";
-  btn.addEventListener("click", () => {
-    let t = ctxTarget;
-    closeLayerCtx(), ctxTarget = t;
+  menu.className = "tl-ctx", menu.style.left = Math.max(4, Math.min(x2, innerWidth - 220)) + 'px', menu.style.top = Math.max(4, Math.min(y2, innerHeight - 220)) + 'px';
+  const add = (label, fn) => {
+    const b = document.createElement("button");
+    b.type = "button", b.textContent = label;
+    b.addEventListener("click", () => {
+      closeLayerCtx();
+      try { fn(); } catch (e) { handle9("[EDIT] " + e.message); }
+    });
+    menu.appendChild(b);
+  };
+  if (a.fillType === "media") add("Ganti foto/video…", () => {
     ctxInput || (ctxInput = document.createElement("input"), ctxInput.type = "file", ctxInput.accept = "image/*,video/*", ctxInput.classList.add("tl-ctx-input"), ctxInput.style.display = "none", ctxInput.addEventListener("change", () => {
-      let f = ctxTarget && ctxInput.files && ctxInput.files[0];
-      if (f) replaceMediaForLayer(ctxTarget, f).then(() => ctxInput.value = '');
-    }), document.body.appendChild(ctxInput)), ctxInput.click();
+      let f = ctxInput.files && ctxInput.files[0];
+      if (f) replaceMediaForLayer(a, f).then(() => ctxInput.value = '');
+    }), document.body.appendChild(ctxInput));
+    ctxTarget = a, ctxInput.click();
   });
-  menu.appendChild(btn), document.body.appendChild(menu), ctxMenu = menu, setTimeout(() => {
+  add("Split di playhead", () => splitLayerAt(a));
+  add("Duplikat layer", () => duplicateLayer(a));
+  add("Hapus layer", () => deleteLayer(a));
+  document.body.appendChild(menu), ctxMenu = menu, setTimeout(() => {
     let once = () => {
       closeLayerCtx(), window.removeEventListener("pointerdown", once), window.removeEventListener("scroll", once, true), window.removeEventListener("contextmenu", once);
     };
     window.addEventListener("pointerdown", once), window.addEventListener("scroll", once, true), window.addEventListener("contextmenu", once);
   }, 0);
 }
+(function injectFeatureStyles() {
+  if (document.getElementById("om-feature-style")) return;
+  const s = document.createElement("style");
+  s.id = "om-feature-style";
+  s.textContent = `
+.tl-track.tl-drop { outline: 2px dashed var(--accent); outline-offset: -2px; border-radius: 8px; box-shadow: inset 0 0 0 999px rgba(31,200,238,.08); }
+.tl-ctx { position: fixed; z-index: 9999; background: var(--card); border: 1px solid var(--line2); border-radius: 10px; padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.5); min-width: 200px; }
+.tl-ctx button { display: block; width: 100%; text-align: left; background: none; border: 0; color: var(--text); padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.tl-ctx button:hover { background: var(--card2); color: var(--accent); }
+.tl-edge { position: absolute; top: 0; bottom: 0; width: 9px; cursor: col-resize; touch-action: none; z-index: 3; }
+.tl-edge-l { left: 0; }
+.tl-edge-r { right: 0; }
+.tl-edge:hover, .tl-edge:active { background: rgba(31,200,238,.4); }
+.tl-track.tl-reorder { outline: 2px dashed var(--accent); outline-offset: -2px; opacity: .92; box-shadow: 0 6px 18px rgba(0,0,0,.45); }
+.tl-block { cursor: move; touch-action: none; }
+.tl-label { cursor: grab; touch-action: none; }
+.tl-label:active { cursor: grabbing; }`;
+  document.head.appendChild(s);
+})();
+(function bindTimelineWheelZoom() {
+  const wrap = document.getElementById("timeline-wrap");
+  if (!wrap || wrap.__zoomWheel) return;
+  wrap.__zoomWheel = true;
+  wrap.addEventListener("wheel", e => {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    get11(je * (e.deltaY < 0 ? 1.25 : 0.8), true);
+  }, { passive: false });
+})();
 window.addEventListener("dragenter", a => {
   a.dataTransfer && [...a.dataTransfer.types].includes("Files") && (vn++, document.body.classList.add("dragging"));
 }), window.addEventListener("dragleave", () => {
@@ -8057,10 +8243,79 @@ window.addEventListener("dragenter", a => {
   tracksButton.addEventListener("contextmenu", a => {
     let trackEl2 = a.target && a.target.closest && a.target.closest(".tl-track"),
       layerEl2 = trackEl2 && trackEl2.__layer;
-    if (!layerEl2 || layerEl2.fillType !== "media") return;
+    if (!layerEl2) return;
     a.preventDefault(), a.stopPropagation(), openLayerCtx(layerEl2, a.clientX, a.clientY);
   });
-}(); ui.addEventListener("change", build7), build7(), _a("proyek"), window.addEventListener("error", a => {
+}();
+var undoStack = [], redoStack = [];
+function sceneSnapshot() {
+  if (!val) return null;
+  try {
+    return structuredClone(val);
+  } catch (e) {
+    try {
+      return JSON.parse(JSON.stringify(val));
+    } catch (e2) {
+      return null;
+    }
+  }
+}
+function pushUndo(snap) {
+  if (!snap) return;
+  undoStack.push(snap), undoStack.length > 60 && undoStack.shift(), redoStack.length = 0;
+}
+function applySceneSnapshot(s) {
+  if (!val || !s) return false;
+  for (const k of Object.keys(val)) delete val[k];
+  for (const k of Object.keys(s)) val[k] = s[k];
+  try {
+    val2 && val2.setScene(val);
+  } catch {}
+  try {
+    val2 && val2.setImages(get10());
+  } catch {}
+  V = true;
+  try {
+    bind4(), compute10(), bind8();
+  } catch {}
+  try {
+    val2 && val2.renderAt(H);
+  } catch {}
+  return true;
+}
+function findParentArray(layer) {
+  if (!layer || !val) return null;
+  if (val.layers && val.layers.indexOf(layer) >= 0) return val.layers;
+  let found = null;
+  const walk = scene => {
+    if (found || !scene || !scene.layers) return;
+    if (scene.layers.indexOf(layer) >= 0) {
+      found = scene.layers;
+      return;
+    }
+    for (const l of scene.layers) if (l.scene) walk(l.scene);
+  };
+  return walk(val), found;
+}
+function undoScene() {
+  if (!undoStack.length) return handle9("[UNDO] tidak ada langkah untuk dibatalkan");
+  const cur = sceneSnapshot(), prev = undoStack.pop();
+  cur && redoStack.push(cur), applySceneSnapshot(prev), handle9("[UNDO] batalkan (" + undoStack.length + " tersisa)");
+}
+function redoScene() {
+  if (!redoStack.length) return handle9("[REDO] tidak ada langkah untuk diulang");
+  const cur = sceneSnapshot(), next = redoStack.pop();
+  cur && undoStack.push(cur), applySceneSnapshot(next), handle9("[REDO] ulangi (" + redoStack.length + " tersisa)");
+}
+window.addEventListener("keydown", a => {
+  if (!(a.ctrlKey || a.metaKey)) return;
+  const k = (a.key || "").toLowerCase();
+  if (k !== "z" && k !== "y") return;
+  const tgt = a.target, tn = tgt && tgt.tagName;
+  if (["INPUT", "SELECT", "TEXTAREA"].includes(tn) || tgt && tgt.isContentEditable) return;
+  a.preventDefault(), (k === "y" || a.shiftKey) ? redoScene() : undoScene();
+});
+ui.addEventListener("change", build7), build7(), _a("proyek"), window.addEventListener("error", a => {
   !a || !a.message || (handle9("[ERROR] " + a.message), get7(a.message));
 }), window.addEventListener("unhandledrejection", a => {
   let val3 = a && a.reason,
