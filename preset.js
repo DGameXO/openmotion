@@ -739,13 +739,13 @@ function ref7(a, b) {
   return arr2;
 }
 function max(a, b) {
-  if (!a || a.tag !== "audio") return 0;
+  if (!a || (a.tag !== "audio" && a.tag !== "video" && a.fillType !== "media")) return 0;
   let val3 = Number(b) || 0;
   if (val3 < a.startTime || val3 >= a.endTime) return 0;
   let val4 = a.endTime - a.startTime,
     val5 = val4 > 0 ? Math.max(0, Math.min(1, (val3 - a.startTime) / val4)) : 0,
     res5 = build(a.gain, val5);
-  return Math.max(0, Math.min(1, Number.isFinite(res5) ? res5 : 1));
+  return Math.max(0, Math.min(5, Number.isFinite(res5) ? res5 : 1));
 }
 function ref8(a) {
   let obj23 = {
@@ -766,7 +766,8 @@ function ref8(a) {
     cornerRadius: 0,
     shapeProps: {},
     strokes: [],
-    fov: 0,
+    cameraType: a.getAttribute("type") || "perspective",
+    fov: a.tagName === "camera" ? 60 : 0,
     parentId: a.getAttribute("parent") || '',
     parentLayer: null,
     blendMode: a.getAttribute("blending") || a.getAttribute("blendMode") || "normal",
@@ -781,6 +782,8 @@ function ref8(a) {
     font: a.getAttribute("font") || '',
     wrapWidth: parseFloat(a.getAttribute("wrapWidth")) || 0,
     align: a.getAttribute("align") || "center",
+    letterSpacing: parseFloat(a.getAttribute("letterSpacing")) || 0,
+    lineSpacing: parseFloat(a.getAttribute("lineSpacing")) || 1,
     textContent: '',
     transform: {
       location: {
@@ -870,6 +873,32 @@ function ref8(a) {
         Number.isFinite(res5) && res5 > 0 && (obj23.fov = res5);
         break;
       }
+    case "focus-blur":
+      {
+        let dist = update(val3, "distance")[0];
+        let dof = update(val3, "depth-of-field")[0];
+        let str = update(val3, "strength")[0];
+        obj23.focusBlur = {
+          enabled: val3.getAttribute("enabled") !== "false",
+          distance: dist ? (parseFloat(dist.getAttribute("value")) || 500) : 500,
+          depthOfField: dof ? (parseFloat(dof.getAttribute("value")) || 100) : 100,
+          strength: str ? (parseFloat(str.getAttribute("value")) || 0.5) : 0.5
+        };
+        break;
+      }
+    case "fog":
+      {
+        let col = update(val3, "color")[0];
+        let nz = update(val3, "near-z")[0];
+        let fz = update(val3, "far-z")[0];
+        obj23.fog = {
+          enabled: val3.getAttribute("enabled") !== "false",
+          color: col ? parseHexColor(col.getAttribute("value")) : [1, 1, 1, 1],
+          nearZ: nz ? (parseFloat(nz.getAttribute("value")) || 0) : 0,
+          farZ: fz ? (parseFloat(fz.getAttribute("value")) || 500) : 500
+        };
+        break;
+      }
     case "property":
       {
         let attr = val3.getAttribute("name");
@@ -907,7 +936,9 @@ function get2(a) {
     for (let val3 of a2.layers || []) {
       if (val3.parentId) {
         let get23 = map.get(val3.parentId);
-        get23 && get23 !== val3 && (val3.parentLayer = get23);
+        val3.parentLayer = (get23 && get23 !== val3) ? get23 : null;
+      } else {
+        val3.parentLayer = null;
       }
       fn9(val3), val3.scene && fn9(val3.scene);
     }
@@ -1258,6 +1289,7 @@ function ref12() {
 function build4(a) {
   try {
     localStorage.setItem(Ds, JSON.stringify(a));
+  
   } catch {}
 }
 function handle4(a) {
@@ -1384,11 +1416,37 @@ function build5(a, b, c, d, arg, arg2) {
   val21[0] = val17, val21[1] = val19, val21[2] = 0, val21[3] = -(val17 * val11 + val19 * val14), val21[4] = val18, val21[5] = val20, val21[6] = 0, val21[7] = -(val18 * val11 + val20 * val14), val21[8] = 0, val21[9] = 0, val21[10] = 1, val21[11] = 0, val21[12] = 0, val21[13] = 0, val21[14] = 0, val21[15] = 1, a.sizePx[0] = c * Math.hypot(val3, val4), a.sizePx[1] = d * Math.hypot(val5, val6), a.sizeNorm[0] = Math.hypot(val9, val12), a.sizeNorm[1] = Math.hypot(val10, val13), a.centerPx[0] = val7, a.centerPx[1] = val8, a.centerNorm[0] = val7 / arg, a.centerNorm[1] = 1 - val8 / arg2, a.valid = true;
 }
 function handle5(a) {
+  if (typeof a === "string") return a;
+  if (!a) return "rgba(0,0,0,1)";
   let round = Math.round(Math.max(0, Math.min(1, a[0] || 0)) * 255),
     round2 = Math.round(Math.max(0, Math.min(1, a[1] || 0)) * 255),
     round3 = Math.round(Math.max(0, Math.min(1, a[2] || 0)) * 255),
     val3 = a[3] === void 0 ? 1 : Math.max(0, Math.min(1, a[3]));
   return "rgba(" + round + ',' + round2 + ',' + round3 + ',' + val3.toFixed(3) + ')';
+}
+function omColorToRgba(color, alpha = 1) {
+  if (!color) return `rgba(0,0,0,${alpha})`;
+  if (Array.isArray(color)) {
+    let r = Math.round(Math.max(0, Math.min(1, color[0] || 0)) * 255);
+    let g = Math.round(Math.max(0, Math.min(1, color[1] || 0)) * 255);
+    let b = Math.round(Math.max(0, Math.min(1, color[2] || 0)) * 255);
+    let a = (color[3] !== undefined ? color[3] : 1) * alpha;
+    return `rgba(${r},${g},${b},${Math.max(0, Math.min(1, a)).toFixed(3)})`;
+  }
+  if (typeof color === "string") {
+    let hex = color.trim().replace(/^#/, "");
+    if (hex.length === 3) hex = hex.split("").map(c => c + c).join("") + "ff";
+    else if (hex.length === 6) hex += "ff";
+    if (hex.length === 8) {
+      let r = parseInt(hex.slice(0, 2), 16) || 0;
+      let g = parseInt(hex.slice(2, 4), 16) || 0;
+      let b = parseInt(hex.slice(4, 6), 16) || 0;
+      let a = ((parseInt(hex.slice(6, 8), 16) || 255) / 255) * alpha;
+      return `rgba(${r},${g},${b},${Math.max(0, Math.min(1, a)).toFixed(3)})`;
+    }
+    if (color.startsWith("rgb")) return color;
+  }
+  return `rgba(0,0,0,${alpha})`;
 }
 var zs = {
     normal: [1, 771],
@@ -1481,6 +1539,8 @@ var rc = {
     diff: "difference",
     difference: "difference",
     exclusion: "exclusion",
+    subtract: "difference",
+    divide: "screen",
     hue: "hue",
     saturation: "saturation",
     color: "color",
@@ -1507,7 +1567,18 @@ function max2(a, b, c) {
     } = obj11(a, c),
     val3 = res6 - res5;
   if (!(val3 > 1)) return res5 / 1000;
-  let max5 = Math.max(0, b);
+  if (a && a.freezeTime != null) {
+    return Math.max(0, Math.min(c - 0.001, (res5 + a.freezeTime * val3) / 1000));
+  }
+  let speed = (a && typeof a.speed === "number" && a.speed > 0) ? a.speed : ((a && typeof a.timeScale === "number" && a.timeScale > 0) ? a.timeScale : 1);
+  let progress = res7 > 0 ? Math.max(0, Math.min(1, b / res7)) : 0;
+  if (a && a.speedCurve && typeof a.speedCurve.evaluate === "function") {
+    progress = a.speedCurve.evaluate(progress);
+  }
+  if (a && a.reversed) {
+    progress = 1 - progress;
+  }
+  let max5 = (a && (a.speedCurve || a.reversed || a.timeStretchMode === "keep")) ? (progress * val3) : (b * speed);
   max5 >= val3 && (max5 = res7 > val3 + 1 ? max5 % val3 : val3);
   let val4 = (res5 + max5) / 1000;
   return Math.max(0, Math.min(c - 0.001, val4));
@@ -1933,6 +2004,7 @@ var Lt = class {
       this.targets.clear(), this.targetBytes = 0;
     }
     ["setScene"](a) {
+      if (a) get2(a);
       this.scene = a, this.autoSizeScale = n2(a), this.sizeScale = this.autoSizeScale, this.log("[SCENE] Satuan ukuran layer: x" + this.sizeScale + (this.sizeScale === 2 ? " (AM menyimpan size dalam satuan proxy 1/2)" : '')), this.setResolution(this.workHeight);
     }
     ["setResolution"](a) {
@@ -2155,6 +2227,24 @@ var Lt = class {
       }
       this.log("[SCENE] " + n + " program efek siap, " + this.failedEffects.size + " efek dilewati.");
     }
+    async ["loadEffect"](id, b) {
+      if (!id) return false;
+      if (this.programs.has(id)) return true;
+      try {
+        let fetcher = b || get15;
+        let val4 = await fetcher(id);
+        if (!val4) return false;
+        this.programs.set(id, {
+          ...this.Pt(val4),
+          definition: val4
+        });
+        return true;
+      } catch (val4) {
+        this.failedEffects.add(id);
+        this.log("[SCENE] Efek " + id + " dilewati: " + String(val4.message).split('\x0a')[0]);
+        return false;
+      }
+    }
     async ["loadShapeLibrary"](a, b) {
       this.shapeDefs.clear();
       let n = 0;
@@ -2327,12 +2417,20 @@ var Lt = class {
           b.fill();
         }
       }
-      let val5 = a.border;
-      val5 && val5.size > 0 && this.qe(b, val4, c, val5.size, handle5(val5.color), val5.direction, "round", "round");
+      let isStrokeOn = a.strokeEnabled !== undefined ? !!a.strokeEnabled : !!(a.border && a.border.size > 0);
+      let sWidth = a.strokeWidth !== undefined ? Number(a.strokeWidth) : (a.border ? Number(a.border.size) : 0);
+      if (isStrokeOn && sWidth > 0) {
+        let sColor = a.strokeColor ? (typeof a.strokeColor === "string" ? a.strokeColor : handle5(a.strokeColor)) : (a.border && a.border.color ? handle5(a.border.color) : "#ffffff");
+        let sPos = a.strokePosition || (a.border ? a.border.direction : "outside");
+        let sCap = a.strokeCap === "square" ? "square" : a.strokeCap === "butt" ? "butt" : "round";
+        let sJoin = a.strokeJoin === "bevel" ? "bevel" : a.strokeJoin === "miter" ? "miter" : "round";
+        this.qe(b, val4, c, sWidth, sColor, sPos, sCap, sJoin);
+      }
       let val6 = a.pathStroke;
       if (val6 && val6.enabled && val6.size > 0) {
         let val7 = val6.cap === "square" ? "square" : val6.cap === "butt" ? "butt" : "round";
-        this.qe(b, val4, c, val6.size, handle5(val6.color), val6.direction, val7, "round");
+        let val8 = val6.join === "bevel" ? "bevel" : val6.join === "miter" ? "miter" : "round";
+        this.qe(b, val4, c, val6.size, handle5(val6.color), val6.direction, val7, val8);
       }
       b.restore();
     }
@@ -2368,16 +2466,22 @@ var Lt = class {
       }
     }
     ['Ut'](a, b, c, d) {
-      let val3 = a.shadow;
-      if (!val3 || !val3.enabled || !(val3.size > 0)) return;
+      let isShad = a.shadowEnabled !== undefined ? !!a.shadowEnabled : !!(a.shadow && a.shadow.enabled !== false);
+      let sRad = a.shadowRadius !== undefined ? Number(a.shadowRadius) : (a.shadow ? Number(a.shadow.size) : 0);
+      let sOffX = a.shadowX !== undefined ? Number(a.shadowX) : (a.shadow && a.shadow.offset ? a.shadow.offset[0] : 0);
+      let sOffY = a.shadowY !== undefined ? Number(a.shadowY) : (a.shadow && a.shadow.offset ? a.shadow.offset[1] : 0);
+      if (!isShad || (sRad <= 0 && sOffX === 0 && sOffY === 0)) return;
       let ht2 = this.Ht(),
         val4 = b.getTransform ? b.getTransform() : null;
       ht2.setTransform(val4 ? val4.a : 1, val4 ? val4.b : 0, val4 ? val4.c : 0, val4 ? val4.d : 1, val4 ? val4.e : 0, val4 ? val4.f : 0);
-      let val5 = val3.offset[0],
-        val6 = val3.offset[1],
+      let val5 = sOffX,
+        val6 = sOffY,
         val7 = val4 ? Math.abs(val4.a * val4.d - val4.b * val4.c) : 1,
         val8 = d * (Math.sqrt(val7) || 1);
-      ht2.shadowColor = handle5(val3.color), ht2.shadowBlur = val3.size * val8, ht2.shadowOffsetX = val4 ? d * (val4.a * val5 + val4.c * val6) : val5 * d, ht2.shadowOffsetY = val4 ? d * (val4.b * val5 + val4.d * val6) : val6 * d, ht2.fillStyle = "#000", ht2.globalCompositeOperation = "source-over", this.$(ht2, c, d), ht2.fill(), ht2.shadowColor = "rgba(0,0,0,0)", ht2.shadowBlur = 0, ht2.shadowOffsetX = 0, ht2.shadowOffsetY = 0, ht2.globalCompositeOperation = "destination-out", this.$(ht2, c, d), ht2.fill(), ht2.globalCompositeOperation = "source-over", b.save(), b.setTransform(1, 0, 0, 1, 0, 0), b.drawImage(this.P, 0, 0), b.restore();
+      let shColArr = a.shadowColor ? (typeof a.shadowColor === "string" ? parseHexColor(a.shadowColor) : a.shadowColor) : (a.shadow && a.shadow.color ? a.shadow.color : [0, 0, 0, 1]);
+      let shAlpha = a.shadowAlpha !== undefined ? Number(a.shadowAlpha) / 100 : (a.shadow && a.shadow.color ? a.shadow.color[3] : 0.6);
+      let shColorStr = `rgba(${Math.round(shColArr[0] * 255)}, ${Math.round(shColArr[1] * 255)}, ${Math.round(shColArr[2] * 255)}, ${(shColArr[3] !== undefined ? shColArr[3] : 1) * shAlpha})`;
+      ht2.shadowColor = shColorStr, ht2.shadowBlur = sRad * val8, ht2.shadowOffsetX = val4 ? d * (val4.a * val5 + val4.c * val6) : val5 * d, ht2.shadowOffsetY = val4 ? d * (val4.b * val5 + val4.d * val6) : val6 * d, ht2.fillStyle = "#000", ht2.globalCompositeOperation = "source-over", this.$(ht2, c, d), ht2.fill(), ht2.shadowColor = "rgba(0,0,0,0)", ht2.shadowBlur = 0, ht2.shadowOffsetX = 0, ht2.shadowOffsetY = 0, ht2.globalCompositeOperation = "destination-out", this.$(ht2, c, d), ht2.fill(), ht2.globalCompositeOperation = "source-over", b.save(), b.setTransform(1, 0, 0, 1, 0, 0), b.drawImage(this.P, 0, 0), b.restore();
     }
     ['Ht']() {
       let val3 = this.raster.width,
@@ -2532,10 +2636,29 @@ var Lt = class {
       return this.Qe = val8, val8;
     }
     ['qt'](a, b, c, d, arg) {
-      let val3 = a.border,
-        val4 = a.shadow,
-        val5 = !!(val3 && val3.size > 0 && val3.color && val3.color[3] > 0.001),
-        val6 = !!(val4 && val4.enabled !== false && val4.color && val4.color[3] > 0.001 && (val4.size > 0 || val4.offset && (val4.offset[0] || val4.offset[1])));
+      const strokeOn = a.strokeEnabled !== undefined ? !!a.strokeEnabled : !!(a.border && a.border.size > 0);
+      let strokeSize = a.strokeWidth !== undefined ? Number(a.strokeWidth) : (a.border ? Number(a.border.size) : 0);
+      if (a.strokeKeyable && a.strokeKeyable.kfs && a.strokeKeyable.kfs.length) {
+        strokeSize = ref3(a.strokeKeyable, this.H !== undefined ? this.H / 1000 : (H / 1000))[0] || 0;
+      }
+      const strokeColArr = a.strokeColor ? (typeof a.strokeColor === "string" ? parseHexColor(a.strokeColor) : a.strokeColor) : (a.border && a.border.color ? a.border.color : [1, 1, 1, 1]);
+      const strokeDir = a.strokePosition || (a.border ? a.border.direction : "outside");
+
+      const shadowOn = a.shadowEnabled !== undefined ? !!a.shadowEnabled : !!(a.shadow && a.shadow.enabled !== false);
+      let shadowSize = a.shadowRadius !== undefined ? Number(a.shadowRadius) : (a.shadow ? Number(a.shadow.size) : 0);
+      if (a.shadowKeyable && a.shadowKeyable.kfs && a.shadowKeyable.kfs.length) {
+        shadowSize = ref3(a.shadowKeyable, this.H !== undefined ? this.H / 1000 : (H / 1000))[0] || 0;
+      }
+      const shadowAlpha = a.shadowAlpha !== undefined ? Number(a.shadowAlpha) / 100 : (a.shadow && a.shadow.color ? a.shadow.color[3] : 0.6);
+      const shadowColArr = a.shadowColor ? (typeof a.shadowColor === "string" ? parseHexColor(a.shadowColor) : a.shadowColor.slice()) : (a.shadow && a.shadow.color ? a.shadow.color.slice() : [0, 0, 0, 1]);
+      if (Array.isArray(shadowColArr)) shadowColArr[3] = (shadowColArr[3] !== undefined ? shadowColArr[3] : 1) * shadowAlpha;
+      const shadowOff = [
+        a.shadowX !== undefined ? Number(a.shadowX) : (a.shadow && a.shadow.offset ? a.shadow.offset[0] : 0),
+        a.shadowY !== undefined ? Number(a.shadowY) : (a.shadow && a.shadow.offset ? a.shadow.offset[1] : 0)
+      ];
+
+      let val5 = !!(strokeOn && strokeSize > 0 && strokeColArr && strokeColArr[3] > 0.001);
+      let val6 = !!(shadowOn && shadowColArr && shadowColArr[3] > 0.001 && (shadowSize > 0 || shadowOff[0] !== 0 || shadowOff[1] !== 0));
       if (!val5 && !val6) return false;
       let jt2 = this.jt();
       if (!jt2) return false;
@@ -2543,14 +2666,14 @@ var Lt = class {
         val8 = b.m,
         val9 = this.workHeight / (a.N || this.scene).height,
         val10 = val9 * (Math.sqrt(Math.abs(val8[0] * val8[3] - val8[1] * val8[2])) || 1),
-        val11 = val5 ? val3.size * val10 : 0,
-        val12 = val6 ? val4.size * val10 : 0,
+        val11 = val5 ? strokeSize * val10 : 0,
+        val12 = val6 ? shadowSize * val10 : 0,
         n = 0,
         n3 = 0,
         n4 = 0;
       if (val6) {
-        let val23 = val4.offset[0] || 0,
-          val24 = val4.offset[1] || 0,
+        let val23 = shadowOff[0] || 0,
+          val24 = shadowOff[1] || 0,
           val25 = val9 * (val8[0] * val23 + val8[2] * val24),
           val26 = val9 * (val8[1] * val23 + val8[3] * val24);
         n = val25 / d, n3 = -val26 / arg, n4 = Math.max(Math.abs(val25), Math.abs(val26));
@@ -2575,9 +2698,9 @@ var Lt = class {
         min2 = Math.min(arg, Math.ceil(val18 + val19));
       if (!(min > max5 && min2 > max6)) return false;
       let val20 = this.Yt || (this.Yt = new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1])),
-        val21 = val5 ? val3.direction === "inside" ? 1 : val3.direction === "centered" || val3.direction === "center" ? 2 : 0 : 0,
+        val21 = val5 ? strokeDir === "inside" ? 1 : strokeDir === "centered" || strokeDir === "center" ? 2 : 0 : 0,
         val22 = jt2.uniforms;
-      return val7.enable(val7.SCISSOR_TEST), val7.scissor(max5, arg - min2, min - max5, min2 - max6), val7.disable(val7.BLEND), val7.bindFramebuffer(val7.FRAMEBUFFER, c.b.fbo), val7.viewport(0, 0, d, arg), val7.useProgram(jt2.program), this.E(jt2.attribs), val7.activeTexture(val7.TEXTURE0), val7.bindTexture(val7.TEXTURE_2D, c.a.tex), val22.u_image && val7.uniform1i(val22.u_image, 0), val22.u_transform && val7.uniformMatrix3fv(val22.u_transform, false, val20), val22.u_texel && val7.uniform2f(val22.u_texel, 1 / d, 1 / arg), val22.u_mode && val7.uniform1f(val22.u_mode, val21), val22.u_bw && val7.uniform1f(val22.u_bw, val11), val22.u_bc && val7.uniform4f(val22.u_bc, val5 ? val3.color[0] : 0, val5 ? val3.color[1] : 0, val5 ? val3.color[2] : 0, val5 ? val3.color[3] : 0), val22.u_useShadow && val7.uniform1f(val22.u_useShadow, val6 ? 1 : 0), val22.u_sr && val7.uniform1f(val22.u_sr, val12), val22.u_so && val7.uniform2f(val22.u_so, n, n3), val22.u_sc && val7.uniform4f(val22.u_sc, val6 ? val4.color[0] : 0, val6 ? val4.color[1] : 0, val6 ? val4.color[2] : 0, val6 ? val4.color[3] : 0), val22.u_shOut && val7.uniform1f(val22.u_shOut, val6 && val4.direction === "inside" ? 0 : 1), val7.drawArrays(val7.TRIANGLES, 0, 6), val7.bindFramebuffer(val7.FRAMEBUFFER, c.a.fbo), val7.useProgram(this.blitProgram), this.E(this.blitAttribs), val7.bindTexture(val7.TEXTURE_2D, c.b.tex), this.blitUniforms.u_image && val7.uniform1i(this.blitUniforms.u_image, 0), this.blitUniforms.u_alpha && val7.uniform1f(this.blitUniforms.u_alpha, 1), this.blitUniforms.u_transform && val7.uniformMatrix3fv(this.blitUniforms.u_transform, false, val20), val7.drawArrays(val7.TRIANGLES, 0, 6), val7.disable(val7.SCISSOR_TEST), this.stats.passes += 2, true;
+      return val7.enable(val7.SCISSOR_TEST), val7.scissor(max5, arg - min2, min - max5, min2 - max6), val7.disable(val7.BLEND), val7.bindFramebuffer(val7.FRAMEBUFFER, c.b.fbo), val7.viewport(0, 0, d, arg), val7.useProgram(jt2.program), this.E(jt2.attribs), val7.activeTexture(val7.TEXTURE0), val7.bindTexture(val7.TEXTURE_2D, c.a.tex), val22.u_image && val7.uniform1i(val22.u_image, 0), val22.u_transform && val7.uniformMatrix3fv(val22.u_transform, false, val20), val22.u_texel && val7.uniform2f(val22.u_texel, 1 / d, 1 / arg), val22.u_mode && val7.uniform1f(val22.u_mode, val21), val22.u_bw && val7.uniform1f(val22.u_bw, val11), val22.u_bc && val7.uniform4f(val22.u_bc, val5 ? strokeColArr[0] : 0, val5 ? strokeColArr[1] : 0, val5 ? strokeColArr[2] : 0, val5 ? strokeColArr[3] : 0), val22.u_useShadow && val7.uniform1f(val22.u_useShadow, val6 ? 1 : 0), val22.u_sr && val7.uniform1f(val22.u_sr, val12), val22.u_so && val7.uniform2f(val22.u_so, n, n3), val22.u_sc && val7.uniform4f(val22.u_sc, val6 ? shadowColArr[0] : 0, val6 ? shadowColArr[1] : 0, val6 ? shadowColArr[2] : 0, val6 ? shadowColArr[3] : 0), val22.u_shOut && val7.uniform1f(val22.u_shOut, val6 && (a.shadow ? a.shadow.direction === "inside" : false) ? 0 : 1), val7.drawArrays(val7.TRIANGLES, 0, 6), val7.bindFramebuffer(val7.FRAMEBUFFER, c.a.fbo), val7.useProgram(this.blitProgram), this.E(this.blitAttribs), val7.bindTexture(val7.TEXTURE_2D, c.b.tex), this.blitUniforms.u_image && val7.uniform1i(this.blitUniforms.u_image, 0), this.blitUniforms.u_alpha && val7.uniform1f(this.blitUniforms.u_alpha, 1), this.blitUniforms.u_transform && val7.uniformMatrix3fv(this.blitUniforms.u_transform, false, val20), val7.drawArrays(val7.TRIANGLES, 0, 6), val7.disable(val7.SCISSOR_TEST), this.stats.passes += 2, true;
     }
     ['Kt'](a, b, c, d) {
       let val3 = this.gl,
@@ -2632,6 +2755,64 @@ var Lt = class {
       }
       return a.Jt = this.R, a.Zt = n, n;
     }
+    ['applyLayerShadow'](c, a) {
+      const isShadowOn = a.shadowEnabled !== undefined ? !!a.shadowEnabled : !!(a.shadow && a.shadow.enabled !== false && (a.shadow.size > 0 || (a.shadow.offset && (a.shadow.offset[0] || a.shadow.offset[1]))));
+      const shRad = a.shadowRadius !== undefined ? Number(a.shadowRadius) : (a.shadow ? Number(a.shadow.size) : 0);
+      const shX = a.shadowX !== undefined ? Number(a.shadowX) : (a.shadow && a.shadow.offset ? a.shadow.offset[0] : 0);
+      const shY = a.shadowY !== undefined ? Number(a.shadowY) : (a.shadow && a.shadow.offset ? a.shadow.offset[1] : 0);
+      if (!isShadowOn || (shRad <= 0 && shX === 0 && shY === 0)) return false;
+
+      const sScale = this.workHeight / (a.N || this.scene).height;
+      const shAlpha = a.shadowAlpha !== undefined ? Number(a.shadowAlpha) / 100 : (a.shadow && a.shadow.color ? a.shadow.color[3] : 0.6);
+      const shCol = a.shadowColor ? (typeof a.shadowColor === "string" ? parseHexColor(a.shadowColor) : a.shadowColor) : (a.shadow && a.shadow.color ? a.shadow.color : [0, 0, 0, 1]);
+      const alpha = (shCol[3] !== undefined ? shCol[3] : 1) * Math.max(0, Math.min(1, shAlpha));
+      c.shadowColor = `rgba(${Math.round(shCol[0] * 255)}, ${Math.round(shCol[1] * 255)}, ${Math.round(shCol[2] * 255)}, ${alpha.toFixed(3)})`;
+      c.shadowBlur = shRad * sScale;
+      c.shadowOffsetX = shX * sScale;
+      c.shadowOffsetY = shY * sScale;
+      return true;
+    }
+    ['drawLayerStroke'](c, a, val3, val4, val6) {
+      const isStrokeOn = a.strokeEnabled !== undefined ? !!a.strokeEnabled : !!(a.border && a.border.size > 0);
+      const sWidth = a.strokeWidth !== undefined ? Number(a.strokeWidth) : (a.border ? Number(a.border.size) : 0);
+      if (!isStrokeOn || sWidth <= 0) return;
+      const sColor = a.strokeColor ? (typeof a.strokeColor === "string" ? a.strokeColor : handle5(a.strokeColor)) : (a.border && a.border.color ? handle5(a.border.color) : "#ffffff");
+      const sPos = a.strokePosition || (a.border ? a.border.direction : "outside");
+      const sCap = a.strokeCap === "square" ? "square" : a.strokeCap === "butt" ? "butt" : "round";
+      const sJoin = a.strokeJoin === "bevel" ? "bevel" : a.strokeJoin === "miter" ? "miter" : "round";
+      const sScale = this.workHeight / (a.N || this.scene).height;
+      const finalW = sWidth * sScale;
+
+      c.save();
+      c.strokeStyle = sColor;
+      c.lineCap = sCap;
+      c.lineJoin = sJoin;
+
+      const val7 = a.shapeType && a.shapeType !== ".rect" && a.shapeType !== '';
+      const drawPath = (ctx) => {
+        val7 ? this.Me(ctx, a, val3, val4, val6) : (ctx.beginPath(), ctx.rect(-val3 / 2, -val4 / 2, val3, val4));
+      };
+
+      if (sPos === "inside") {
+        drawPath(c);
+        c.clip();
+        drawPath(c);
+        c.lineWidth = finalW * 2;
+        c.stroke();
+      } else if (sPos === "outside") {
+        drawPath(c);
+        c.rect(-100000, -100000, 200000, 200000);
+        c.clip("evenodd");
+        drawPath(c);
+        c.lineWidth = finalW * 2;
+        c.stroke();
+      } else {
+        drawPath(c);
+        c.lineWidth = finalW;
+        c.stroke();
+      }
+      c.restore();
+    }
     ['Se'](a, b, c) {
       let fe2 = this.fe(a, b),
         val3 = fe2[0],
@@ -2646,8 +2827,8 @@ var Lt = class {
         val7 = val5 !== ".rect" && val5 !== '';
       if (a.tag === "text") {
         c.save();
-        let val13 = a.fillColor || [0, 0, 0, 1];
-        c.fillStyle = handle5(val13);
+        let val13 = a.fillColor || a.color || [1, 1, 1, 1];
+        c.fillStyle = typeof val13 === "string" ? val13 : handle5(val13);
         let val14 = this.workHeight / (a.N || this.scene).height,
           val15 = je2[1] > 0 && je2[1] !== 100 ? je2[1] / 18 : 1,
           max5 = Math.max(1, (a.fontSize || 18) * val14 * val15 * 2),
@@ -2658,19 +2839,27 @@ var Lt = class {
           let replace = a.font.replace(/&amp;/g, '&'),
             match = replace.match(/name=([^&]+)/);
           if (replace.includes("googlefonts") && match) {
-            if (str = decodeURIComponent(match[1]), typeof document < 'u' && typeof document.querySelector == "function" && !document.querySelector("link[data-font=\"" + str + '\x22]')) {
+            str = decodeURIComponent(match[1]);
+            if (typeof document < 'u' && typeof document.querySelector == "function" && !document.querySelector("link[data-font=\"" + str + '\x22]')) {
               let linkEl = document.createElement("link");
-              linkEl.rel = "stylesheet", linkEl.dataset.font = str, linkEl.href = "https://fonts.googleapis.com/css2?family=" + encodeURIComponent(str) + ":wght@400;500;700&display=swap", document.head.appendChild(linkEl);
+              linkEl.rel = "stylesheet", linkEl.dataset.font = str, linkEl.href = "https://fonts.googleapis.com/css2?family=" + encodeURIComponent(str).replace(/%20/g, '+') + ":wght@400;500;700&display=swap", document.head.appendChild(linkEl);
+            }
+          } else if (replace.includes("imported?name=")) {
+            let match2 = replace.match(/name=([^&]+)/);
+            if (match2) {
+              let res5 = decodeURIComponent(match2[1]),
+                replace2 = res5.replace(/\.[^/.]+$/, '');
+              this.customFonts && (this.customFonts.has(replace2) || this.customFonts.has(res5)) ? str = this.customFonts.get(replace2) || this.customFonts.get(res5) : str = replace2;
             }
           } else {
-            if (replace.includes("imported?name=")) {
-              let match2 = replace.match(/name=([^&]+)/);
-              if (match2) {
-                let res5 = decodeURIComponent(match2[1]),
-                  replace2 = res5.replace(/\.[^/.]+$/, '');
-                this.customFonts && (this.customFonts.has(replace2) || this.customFonts.has(res5)) ? str = this.customFonts.get(replace2) || this.customFonts.get(res5) : str = replace2;
+            let clean = replace.trim();
+            if (clean) {
+              this.customFonts && this.customFonts.has(clean) ? str = this.customFonts.get(clean) : str = clean;
+              if (typeof document < 'u' && typeof document.querySelector == "function" && !clean.includes("/") && clean !== "Roboto" && clean !== "sans-serif" && !document.querySelector("link[data-font=\"" + clean + '\x22]')) {
+                let linkEl = document.createElement("link");
+                linkEl.rel = "stylesheet", linkEl.dataset.font = clean, linkEl.href = "https://fonts.googleapis.com/css2?family=" + encodeURIComponent(clean).replace(/%20/g, '+') + ":wght@300;400;500;600;700;800;900&display=swap", document.head.appendChild(linkEl);
               }
-            } else replace.trim() && (this.customFonts && this.customFonts.has(replace.trim()) ? str = this.customFonts.get(replace.trim()) : str = replace);
+            }
           }
           if (replace.includes("weight=")) {
             let match2 = replace.match(/weight=([^&]+)/);
@@ -2678,13 +2867,58 @@ var Lt = class {
           }
           replace.includes("italic=1") && (str3 = "italic");
         }
-        c.font = str3 + '\x20' + str2 + '\x20' + max5 + "px \"" + str + "\", \"Roboto\", sans-serif", c.textAlign = a.align || "center", c.textBaseline = "middle";
+        let fxSpacing = a.effects && a.effects.find(e => e.id && e.id.includes("textspacing"));
+        let letSpacing = a.letterSpacing !== undefined ? a.letterSpacing : (fxSpacing && fxSpacing.params && fxSpacing.params.letterspacing !== undefined ? parseFloat(fxSpacing.params.letterspacing) : 0);
+        let lineMul = a.lineSpacing !== undefined ? a.lineSpacing : (fxSpacing && fxSpacing.params && fxSpacing.params.linespacing !== undefined ? parseFloat(fxSpacing.params.linespacing) : 1);
+        if (Number.isNaN(letSpacing)) letSpacing = 0;
+        if (Number.isNaN(lineMul) || lineMul <= 0) lineMul = 1;
+
+        c.font = str3 + '\x20' + str2 + '\x20' + max5 + "px \"" + str + "\", \"Roboto\", sans-serif";
+        if ('letterSpacing' in c && typeof c.letterSpacing === "string") {
+          c.letterSpacing = (letSpacing * max5) + "px";
+        }
+        let isJustify = a.align === "justify";
+        c.textAlign = isJustify ? "left" : (a.align || "center");
+        c.textBaseline = "middle";
+
+        this.applyLayerShadow(c, a);
         let parts = (a.textContent || '').split('\x0a'),
-          val16 = max5 * 1.2,
+          val16 = max5 * 1.2 * lineMul,
           val17 = -(parts.length * val16) / 2 + val16 / 2,
           n = 0;
-        a.align === "left" ? n = -val3 / 2 : a.align === "right" && (n = val3 / 2);
-        for (let n3 = 0; n3 < parts.length; n3++) parts[n3] && c.fillText(parts[n3], n, val17 + n3 * val16);
+        a.align === "left" || isJustify ? n = -val3 / 2 : a.align === "right" && (n = val3 / 2);
+        for (let n3 = 0; n3 < parts.length; n3++) {
+          let lineText = parts[n3];
+          if (!lineText) continue;
+          let lineY = val17 + n3 * val16;
+          if (isJustify && n3 < parts.length - 1 && lineText.includes(' ') && val3 > 0) {
+            let words = lineText.split(' ');
+            let wordsWidth = 0;
+            for (let w of words) wordsWidth += c.measureText(w).width;
+            let spaceLeft = val3 - wordsWidth;
+            let spaceWidth = words.length > 1 ? spaceLeft / (words.length - 1) : 0;
+            let curX = -val3 / 2;
+            for (let wIdx = 0; wIdx < words.length; wIdx++) {
+              c.fillText(words[wIdx], curX, lineY);
+              curX += c.measureText(words[wIdx]).width + spaceWidth;
+            }
+          } else {
+            c.fillText(lineText, n, lineY);
+          }
+          const isStrokeOn = a.strokeEnabled !== undefined ? !!a.strokeEnabled : !!(a.border && a.border.size > 0);
+          const sWidth = a.strokeWidth !== undefined ? Number(a.strokeWidth) : (a.border ? Number(a.border.size) : 0);
+          if (isStrokeOn && sWidth > 0) {
+            c.save();
+            c.shadowColor = "rgba(0,0,0,0)";
+            c.shadowBlur = 0;
+            c.lineWidth = sWidth * (this.workHeight / (a.N || this.scene).height);
+            c.strokeStyle = a.strokeColor ? (typeof a.strokeColor === "string" ? a.strokeColor : handle5(a.strokeColor)) : (a.border && a.border.color ? handle5(a.border.color) : "#ffffff");
+            c.lineCap = a.strokeCap === "square" ? "square" : a.strokeCap === "butt" ? "butt" : "round";
+            c.lineJoin = a.strokeJoin === "bevel" ? "bevel" : a.strokeJoin === "miter" ? "miter" : "round";
+            c.strokeText(lineText, n, lineY);
+            c.restore();
+          }
+        }
         c.restore();
         return;
       }
@@ -2714,10 +2948,94 @@ var Lt = class {
         if (!me2) return;
         let vt2 = this.Vt(a, me2, val3, val4, val7, c);
         if (vt2) return vt2;
-        c.save(), val7 && (this.Me(c, a, val3, val4, val6), c.clip()), this._t(c, me2, -val3 / 2, -val4 / 2, val3, val4, a.mediaFillMode, a), c.restore();
+        c.save(), this.applyLayerShadow(c, a), val7 && (this.Me(c, a, val3, val4, val6), c.clip()), this._t(c, me2, -val3 / 2, -val4 / 2, val3, val4, a.mediaFillMode, a), c.restore();
+        this.drawLayerStroke(c, a, val3, val4, val6);
         return;
       }
-      if (a.tag === "nullobj" || a.tag === "audio" || a.tag === "camera") return;
+      if (a.tag === "audio") return;
+      if (a.tag === "nullobj") {
+        c.save();
+        c.strokeStyle = "#00ffa8";
+        c.lineWidth = 1.5;
+        c.setLineDash([3, 3]);
+        c.strokeRect(-26, -26, 52, 52);
+
+        // Center plus crosshair (solid)
+        c.setLineDash([]);
+        c.lineWidth = 1.6;
+        c.beginPath();
+        c.moveTo(-9, 0); c.lineTo(9, 0);
+        c.moveTo(0, -9); c.lineTo(0, 9);
+        c.stroke();
+
+        c.fillStyle = "#00ffa8";
+        c.font = "bold 10px sans-serif";
+        c.textAlign = "center";
+        c.fillText(a.label || "Null", 0, 38);
+        c.restore();
+        return;
+      }
+      if (a.tag === "camera") {
+        if (!this.G) {
+          c.save();
+          const fov = a.fov || 60;
+          const zoom = a.cameraZoom || 400;
+          const hw = 26;
+          const hh = 18;
+
+          c.fillStyle = "rgba(0, 195, 255, 0.2)";
+          c.strokeStyle = "#00c3ff";
+          c.lineWidth = 2;
+          c.beginPath();
+          if (c.roundRect) c.roundRect(-hw, -hh, hw * 2, hh * 2, 4);
+          else c.rect(-hw, -hh, hw * 2, hh * 2);
+          c.fill();
+          c.stroke();
+
+          // Camera lens cone
+          c.beginPath();
+          c.moveTo(hw, -10);
+          c.lineTo(hw + 12, -16);
+          c.lineTo(hw + 12, 16);
+          c.lineTo(hw, 10);
+          c.closePath();
+          c.fillStyle = "rgba(0, 195, 255, 0.4)";
+          c.fill();
+          c.stroke();
+
+          // Lens circle
+          c.beginPath();
+          c.arc(0, 0, 8, 0, Math.PI * 2);
+          c.stroke();
+
+          // Frustum rays and plane
+          const halfFovRad = (fov / 2) * Math.PI / 180;
+          const frustumLen = Math.min(500, Math.max(80, zoom * 0.6));
+          const frustumSpread = frustumLen * Math.tan(halfFovRad);
+
+          c.strokeStyle = "rgba(0, 195, 255, 0.65)";
+          c.setLineDash([4, 4]);
+          c.lineWidth = 1.5;
+
+          c.beginPath();
+          c.moveTo(hw + 12, 0);
+          c.lineTo(hw + 12 + frustumLen, -frustumSpread);
+          c.moveTo(hw + 12, 0);
+          c.lineTo(hw + 12 + frustumLen, frustumSpread);
+          c.moveTo(hw + 12 + frustumLen, -frustumSpread);
+          c.lineTo(hw + 12 + frustumLen, frustumSpread);
+          c.stroke();
+          c.setLineDash([]);
+
+          // Camera label
+          c.fillStyle = "#00c3ff";
+          c.font = "bold 11px sans-serif";
+          c.textAlign = "center";
+          c.fillText(a.label || "Kamera", 0, hh + 15);
+          c.restore();
+        }
+        return;
+      }
       let val8 = -val3 / 2 + (a.gradient && a.gradient.start[0] || 0) * val3,
         val9 = -val4 / 2 + (a.gradient && a.gradient.start[1] || 0) * val4,
         val10 = -val3 / 2 + (a.gradient && a.gradient.end[0] || 1) * val3,
@@ -2739,13 +3057,9 @@ var Lt = class {
           } else val14.addColorStop(0, handle5(val13.startColor)), val14.addColorStop(1, handle5(val13.endColor));
           c.fillStyle = val14;
         } else c.fillStyle = handle5(a.fillColor);
-        c.save(), val7 ? (this.Me(c, a, val3, val4, val6), c.fill()) : c.fillRect(-val3 / 2, -val4 / 2, val3, val4), c.restore();
+        c.save(), this.applyLayerShadow(c, a), val7 ? (this.Me(c, a, val3, val4, val6), c.fill()) : c.fillRect(-val3 / 2, -val4 / 2, val3, val4), c.restore();
       }
-      let val12 = a.border;
-      if (val12 && val12.size > 0) {
-        let val13 = this.workHeight / (a.N || this.scene).height;
-        c.lineWidth = val12.size * val13, c.strokeStyle = handle5(val12.color), this.Me(c, a, val3, val4, val6), c.stroke();
-      }
+      this.drawLayerStroke(c, a, val3, val4, val6);
     }
     ['se'](a, b) {
       if (a.tn === this.R && a.nn === a.Ae) return a.an;
@@ -2945,6 +3259,8 @@ var Lt = class {
         } catch (val15) {
           this.Ke(val15), this.Qt(arg3), this.nt(this.raster, f.a, d, arg);
         } else this.nt(this.raster, f.a, d, arg);
+        const bObj = arg3 && arg3.m ? arg3 : { m: [1, 0, 0, 1, 0, 0], w: d, h: arg };
+        this.qt(a, bObj, f, d, arg);
       }
       if (!val6) {
         let ref25 = val7;
@@ -3226,21 +3542,46 @@ var Lt = class {
     }
     ['kn'](a, b) {
       let arr2 = [a],
-        val3 = a.parentLayer,
-        n = 0;
-      for (; val3 && n++ < 16;) arr2.push(val3), val3 = val3.parentLayer;
+        val3 = a.parentLayer;
+      if (!val3 && a.parentId && this.scene) {
+        if (!this.scene.layerById) get2(this.scene);
+        val3 = this.scene.layerById ? this.scene.layerById.get(a.parentId) : null;
+        if (val3) a.parentLayer = val3;
+      }
+      let n = 0;
+      for (; val3 && n++ < 16;) {
+        arr2.push(val3);
+        let next = val3.parentLayer;
+        if (!next && val3.parentId && this.scene && this.scene.layerById) {
+          next = this.scene.layerById.get(val3.parentId);
+          if (next) val3.parentLayer = next;
+        }
+        val3 = next;
+      }
       return arr2.reverse(), arr2.length === 1 ? null : arr2;
     }
     ['rt'](a, b) {
       let val3 = a.endTime - a.startTime;
       if (val3 <= 0) return 0;
       let val4 = (b - a.startTime) / val3;
-      return val4 < 0 ? 0 : val4 > 1 ? 1 : val4;
+      val4 = val4 < 0 ? 0 : val4 > 1 ? 1 : val4;
+      if (a && a.freezeTime != null) return Math.max(0, Math.min(1, a.freezeTime));
+      if (a && a.speedCurve && typeof a.speedCurve.evaluate === "function") {
+        val4 = a.speedCurve.evaluate(val4);
+      }
+      if (a && a.reversed) val4 = 1 - val4;
+      return val4;
     }
     ['X'](a, b) {
       if (b < a.startTime || b > a.endTime) return null;
       let val3 = a.endTime - a.startTime;
-      return val3 > 0 ? (b - a.startTime) / val3 : 0;
+      let val4 = val3 > 0 ? (b - a.startTime) / val3 : 0;
+      if (a && a.freezeTime != null) return Math.max(0, Math.min(1, a.freezeTime));
+      if (a && a.speedCurve && typeof a.speedCurve.evaluate === "function") {
+        val4 = a.speedCurve.evaluate(val4);
+      }
+      if (a && a.reversed) val4 = 1 - val4;
+      return val4;
     }
     ['tt'](a, b, c) {
       if (a.hidden || a.re) return;
@@ -3255,9 +3596,29 @@ var Lt = class {
       val5.setTransform(1, 0, 0, 1, 0, 0);
       let val6 = this.surfWidth,
         val7 = this.surfHeight;
-      val5.clearRect(0, 0, val6, val7), val5.globalCompositeOperation = "source-over", val5.globalAlpha = 1, val5.save(), (this.padX || this.padY) && val5.translate(this.padX, this.padY), this.G && (val5.translate(this.k[4], this.k[5]), val5.scale(this.k[0], this.k[3]));
+      val5.clearRect(0, 0, val6, val7), val5.globalCompositeOperation = "source-over", val5.globalAlpha = 1, val5.save(), (this.padX || this.padY) && val5.translate(this.padX, this.padY);
       let en = this.En(this.ae);
-      if (this.Ce(val5, a, te2, val4, c), this.G) apply4(en, this.k, we);else {
+      this.Ce(val5, a, te2, val4, c);
+      if (this.G) {
+        let layerMat = we;
+        let lz = (te2.loc && te2.loc.z) || 0;
+        if (this.activeCamera && this.activeCamera.cameraType !== "orthographic" && lz !== 0) {
+          let camZ = this.camZ || 500;
+          let dz = Math.max(1, camZ - lz);
+          let sz = camZ / dz;
+          let cx = this.camLoc ? this.camLoc[0] : (val3.width / 2);
+          let cy = this.camLoc ? this.camLoc[1] : (val3.height / 2);
+          layerMat = [
+            we[0] * sz,
+            we[1] * sz,
+            we[2] * sz,
+            we[3] * sz,
+            cx + (we[4] - cx) * sz,
+            cy + (we[5] - cy) * sz
+          ];
+        }
+        apply4(en, this.k, layerMat);
+      } else {
         for (let n = 0; n < 6; n++) en[n] = we[n];
       }
       a.N = val3, a.B = Math.max(0, c * 1000), a.he = a.endTime - a.startTime;
@@ -3272,6 +3633,23 @@ var Lt = class {
       if (update3(en, val8, val9, this.workWidth, this.workHeight, this.oe(a), this.padX, this.padY).empty) {
         val5.restore();
         return;
+      }
+      let fbApplied = false;
+      if (this.G && this.activeCamera && this.activeCamera.focusBlur && this.activeCamera.focusBlur.enabled) {
+        let fb = this.activeCamera.focusBlur;
+        let lz = (te2.loc && te2.loc.z) || 0;
+        let dist = Math.abs((this.camZ || 500) - lz);
+        let fDist = fb.distance != null ? fb.distance : 500;
+        let dof = fb.depthOfField != null ? fb.depthOfField : 100;
+        let str = fb.strength != null ? fb.strength : 0.5;
+        let delta = Math.abs(dist - fDist) - (dof / 2);
+        if (delta > 0) {
+          let blurPx = Math.min(25, (delta / 100) * str * 10);
+          if (blurPx >= 0.5) {
+            val5.filter = "blur(" + blurPx.toFixed(1) + "px)";
+            fbApplied = true;
+          }
+        }
       }
       let val11 = null;
       if (a.tag === "embedScene" && a.scene) {
@@ -3291,6 +3669,25 @@ var Lt = class {
       } else {
         let val16 = this.i ? performance.now() : 0;
         val11 = this.Se(a, se2, val5), this.i && (this.i.raster += performance.now() - val16);
+      }
+      if (fbApplied) val5.filter = "none";
+      if (this.G && this.activeCamera && this.activeCamera.fog && this.activeCamera.fog.enabled) {
+        let fg = this.activeCamera.fog;
+        let lz = (te2.loc && te2.loc.z) || 0;
+        let dist = Math.abs((this.camZ || 500) - lz);
+        let nz = fg.nearZ != null ? fg.nearZ : 0;
+        let fz = fg.farZ != null ? fg.farZ : 500;
+        if (fz > nz && dist > nz) {
+          let factor = Math.max(0, Math.min(1, (dist - nz) / (fz - nz)));
+          if (factor > 0.01) {
+            val5.save();
+            val5.globalCompositeOperation = "source-atop";
+            let fc = fg.color || [1, 1, 1, 1];
+            val5.fillStyle = "rgba(" + Math.round(fc[0] * 255) + "," + Math.round(fc[1] * 255) + "," + Math.round(fc[2] * 255) + "," + (factor * 0.85).toFixed(3) + ")";
+            val5.fillRect(-val8 / 2, -val9 / 2, val8, val9);
+            val5.restore();
+          }
+        }
       }
       build5(this.o, en, val8, val9, this.workWidth, this.workHeight), val5.restore();
       let val12 = this.i ? performance.now() : 0,
@@ -3338,13 +3735,24 @@ var Lt = class {
       return d;
     }
     ['We'](a, b) {
-      let val3 = a.parentLayer,
-        n = 1,
+      let val3 = a.parentLayer;
+      if (!val3 && a.parentId && this.scene) {
+        if (!this.scene.layerById) get2(this.scene);
+        val3 = this.scene.layerById ? this.scene.layerById.get(a.parentId) : null;
+        if (val3) a.parentLayer = val3;
+      }
+      let n = 1,
         n3 = 0;
       for (; val3 && n3++ < 16;) {
         let val4 = a.startTime + b * 1000,
           te2 = this.te(val3, this.rt(val3, val4), (val4 - val3.startTime) / 1000);
-        n *= te2.alpha, val3 = val3.parentLayer;
+        n *= te2.alpha;
+        let next = val3.parentLayer;
+        if (!next && val3.parentId && this.scene && this.scene.layerById) {
+          next = this.scene.layerById.get(val3.parentId);
+          if (next) val3.parentLayer = next;
+        }
+        val3 = next;
       }
       return n;
     }
@@ -3353,19 +3761,45 @@ var Lt = class {
       return val3 || (val3 = this._e[a] = new Float32Array(6)), val3;
     }
     ['et'](a) {
+      if (this.cameraViewEnabled === false) return this.G = false, this.activeCamera = null, false;
       let val3 = this.scene,
         res5 = ref5(val3, a);
-      if (!res5) return this.G = false, false;
-      let val4 = res5.camera,
-        val5 = val4.endTime - val4.startTime,
+      if (!res5) return this.G = false, this.activeCamera = null, false;
+      let val4 = res5.camera;
+      if (val4.hidden || (this.hiddenLayers && this.hiddenLayers.has(val4.id))) {
+        return this.G = false, this.activeCamera = null, false;
+      }
+      let val5 = val4.endTime - val4.startTime,
         val6 = val5 > 0 ? (a - val4.startTime) / val5 : 0;
       val6 < 0 ? val6 = 0 : val6 > 1 && (val6 = 1);
       let res6 = ref3(val4.transform.location, val6, this.ht),
         val7 = val4.fov > 0 ? val4.fov : 60,
         max5 = Math.max(0.001, Math.abs(res6[2])),
-        val8 = val3.height / 2 / Math.tan(val7 * Math.PI / 360) / max5,
+        val8 = val4.cameraType === "orthographic"
+          ? (val4.cameraZoom > 0 ? (val4.cameraZoom / 500) : 1)
+          : (val3.height / 2 / Math.tan(val7 * Math.PI / 360) / max5),
         val9 = this.workHeight / val3.height;
-      return this.k[0] = val8, this.k[1] = 0, this.k[2] = 0, this.k[3] = val8, this.k[4] = (val3.width / 2 - res6[0] * val8) * val9, this.k[5] = (val3.height / 2 - res6[1] * val8) * val9, this.G = true, true;
+      let camScale = val4.transform && val4.transform.scale ? ref3(val4.transform.scale, val6, this.ht) : [1, 1];
+      val8 *= (camScale[0] || 1);
+      let camRot = (build(val4.transform.rotation, val6) || 0) * Math.PI / 180;
+      let cCos = Math.cos(-camRot) * val8,
+        cSin = Math.sin(-camRot) * val8;
+      this.k[0] = cCos;
+      this.k[1] = cSin;
+      this.k[2] = -cSin;
+      this.k[3] = cCos;
+      let ox = val3.width / 2,
+        oy = val3.height / 2,
+        cx = res6[0],
+        cy = res6[1];
+      this.k[4] = (ox - (cx * cCos - cy * cSin)) * val9;
+      this.k[5] = (oy - (cx * cSin + cy * cCos)) * val9;
+      this.G = true;
+      this.activeCamera = val4;
+      this.camZ = max5;
+      this.camLoc = [cx, cy, max5];
+      this.camFov = val7;
+      return true;
     }
     ["renderAt"](a) {
       if (!this.scene) return;
@@ -5040,11 +5474,29 @@ function render8() {
     }
     let audio = new Audio(res6);
     audio.preload = "auto", audio.loop = false;
+    let gainNode = null;
+    try {
+      if (!window.__AM_AUDIO_CTX) {
+        const ACtx = window.AudioContext || window.webkitAudioContext;
+        if (ACtx) window.__AM_AUDIO_CTX = new ACtx();
+      }
+      const actx = window.__AM_AUDIO_CTX;
+      if (actx) {
+        if (/^https?:\/\//i.test(res6)) {
+          audio.crossOrigin = "anonymous";
+        }
+        const srcNode = actx.createMediaElementSource(audio);
+        gainNode = actx.createGain();
+        srcNode.connect(gainNode);
+        gainNode.connect(actx.destination);
+      }
+    } catch(e) {}
     let obj23 = {
       id: val5,
       layer: val3,
       offsetMs: val4,
       el: audio,
+      gainNode: gainNode,
       src: res6,
       label: res7 || val3.src,
       broken: false,
@@ -5052,11 +5504,12 @@ function render8() {
       durationMs: 0
     };
     audio.addEventListener("error", () => {
-      obj23.broken = true, handle9("[AUDIO] Gagal memuat \"" + obj23.label + '\x22' + (audio.error ? " kode " + audio.error.code : '') + "; layer ini senyap.");
+      obj23.broken = true, handle9("[AUDIO] Gagal memuat \"" + obj23.label + '\"' + (audio.error ? " kode " + audio.error.code : '') + "; layer ini senyap.");
     }), audio.addEventListener("loadedmetadata", () => {
       obj23.durationMs = Number.isFinite(audio.duration) ? audio.duration * 1000 : 0, obj23.ready = true;
     }), audio.load(), ee.push(obj23), Xo.set(val5, obj23);
   }
+  window.__AM_AUDIO_EE = ee;
   return Go = ee.length > 0, handle9("[AUDIO] " + ee.length + " layer audio scene (" + res5.length + " ditemukan, timeline project independen)."), ee.length;
 }
 function apply9(a) {
@@ -5099,8 +5552,21 @@ function build9(a, b, c) {
     val3.volume !== 0 && (val3.volume = 0), val3.paused || val3.pause(), a.D = false;
     return;
   }
-  let max5 = Math.max(0, Math.min(1, max(a.layer, b - a.offsetMs)));
-  Math.abs(val3.volume - max5) > 0.001 && (val3.volume = max5);
+  let max5 = Math.max(0, max(a.layer, b - a.offsetMs));
+  if (a.gainNode) {
+    try {
+      if (window.__AM_AUDIO_CTX && window.__AM_AUDIO_CTX.state === "suspended" && flag2) {
+        window.__AM_AUDIO_CTX.resume();
+      }
+      a.gainNode.gain.value = max5;
+      val3.volume = 1;
+    } catch(e) {
+      val3.volume = Math.max(0, Math.min(1, max5));
+    }
+  } else {
+    let volClamp = Math.max(0, Math.min(1, max5));
+    Math.abs(val3.volume - volClamp) > 0.001 && (val3.volume = volClamp);
+  }
   let val5 = res9 / 1000;
   if (flag2) {
     if (val3.paused && !a.D) {
@@ -5114,7 +5580,7 @@ function build9(a, b, c) {
         a.D = false;
       });
     } else {
-      if (c && !a.D) try {
+      if ((c || Math.abs(val3.currentTime - val5) > 0.12) && !a.D) try {
         val3.currentTime = val5;
       } catch {}
     }
@@ -5324,13 +5790,22 @@ function get10() {
   return fn9(val), map;
 }
 function getPos() {
-  let getBoundingClientRect = wi.getBoundingClientRect(),
-    val3 = re.width / re.height,
-    n = 20,
+  let container = document.getElementById("am-preview-stage") || (typeof wi !== 'undefined' ? wi : null) || document.getElementById("stage");
+  if (!container || typeof re === 'undefined' || !re) return;
+  let getBoundingClientRect = container.getBoundingClientRect(),
+    val3 = (re.width && re.height) ? (re.width / re.height) : (9 / 16),
+    n = 24,
     max5 = Math.max(100, getBoundingClientRect.width - n),
     max6 = Math.max(100, getBoundingClientRect.height - n),
     val4 = max6 * val3;
-  val4 > max5 && (val4 = max5, max6 = val4 / val3), re.style.width = Math.round(val4) + 'px', re.style.height = Math.round(max6) + 'px';
+  val4 > max5 && (val4 = max5, max6 = val4 / val3);
+  re.style.width = Math.round(val4) + 'px';
+  re.style.height = Math.round(max6) + 'px';
+  let dbg = document.getElementById("debugCanvas");
+  if (dbg) {
+    dbg.style.width = re.style.width;
+    dbg.style.height = re.style.height;
+  }
   try {
     V = true;
   } catch {}
@@ -5500,6 +5975,10 @@ var dt = 112,
       bg: "#3d4f9a",
       text: "#c1ceff"
     },
+    camera: {
+      bg: "#8c4414",
+      text: "#ffd2b3"
+    },
     embedScene: {
       bg: "#8a6a1f",
       text: "#ffe2a0"
@@ -5532,7 +6011,7 @@ function build12(a) {
     let get23 = val2.images.get(val3);
     if (get23) return get23;
   }
-  return val3 ? '' : a.tag === "text" ? "text" : get13(a) ? "group" : a.fillColor && a.fillColor.length >= 3 ? update13(a.fillColor) : '';
+  return val3 ? '' : a.tag === "camera" ? "camera" : a.tag === "text" ? "text" : get13(a) ? "group" : a.fillColor && a.fillColor.length >= 3 ? update13(a.fillColor) : '';
 }
 var gi = [],
   nl = 26,
@@ -5542,8 +6021,16 @@ function handle15(a, b) {
   if (!val3) return;
   let val4 = a.width,
     val5 = a.height;
-  if (val3.clearRect(0, 0, val4, val5), typeof b == "string" && b !== "text" && b !== "group" && b.charAt(0) === '#') {
+  if (val3.clearRect(0, 0, val4, val5), typeof b == "string" && b !== "text" && b !== "group" && b !== "camera" && b.charAt(0) === '#') {
     val3.fillStyle = b, val3.fillRect(0, 0, val4, val5), val3.strokeStyle = "rgba(255,255,255,.2)", val3.strokeRect(2.5, 2.5, val4 - 5, val5 - 5);
+    return;
+  }
+  if (b === "camera") {
+    val3.fillStyle = "#2d1607", val3.fillRect(0, 0, val4, val5);
+    val3.fillStyle = "#ff9a3c", val3.beginPath();
+    val3.roundRect ? val3.roundRect(4, 7, 11, 10, 2) : val3.rect(4, 7, 11, 10);
+    val3.fill();
+    val3.beginPath(), val3.moveTo(16, 9.5), val3.lineTo(21, 7), val3.lineTo(21, 17), val3.lineTo(16, 14.5), val3.closePath(), val3.fill();
     return;
   }
   if (b === "text" || b === "group") {
@@ -5572,7 +6059,7 @@ function handle15(a, b) {
 function process13(a) {
   let toLowerCase = (a.fillType || '').toLowerCase(),
     toLowerCase2 = (a.tag || '').toLowerCase();
-  return toLowerCase2 === "audio" || toLowerCase === "audio" ? ht.audio : toLowerCase === "image" || toLowerCase === "photo" ? ht.image : toLowerCase === "video" ? ht.video : toLowerCase2 === "text" ? ht.text : toLowerCase2 === "embedscene" ? ht.embedScene : toLowerCase2 === "shape" ? ht.shape : ht.default;
+  return toLowerCase2 === "camera" ? ht.camera : toLowerCase2 === "audio" || toLowerCase === "audio" ? ht.audio : toLowerCase === "image" || toLowerCase === "photo" ? ht.image : toLowerCase === "video" ? ht.video : toLowerCase2 === "text" ? ht.text : toLowerCase2 === "embedscene" ? ht.embedScene : toLowerCase2 === "shape" ? ht.shape : ht.default;
 }
 var je = 3,
   Bn = false,
@@ -5648,7 +6135,10 @@ function render11(a) {
   }
 }
 function apply13(a, b) {
-  yt = Nn(a, b), val2 && (val2.debugSelectedLayerId = a ? a.id : null), document.querySelectorAll(".tl-block").forEach(a2 => a2.classList.toggle("tl-selected", a2.dataset.key === yt)), document.querySelectorAll(".tl-label").forEach(a2 => a2.classList.toggle("sel", a2.dataset.key === yt)), document.querySelectorAll(".st-row").forEach(a2 => a2.classList.toggle("st-sel", a2.dataset.key === yt)), bind6(a, b, a.ce || 0), V = true;
+  yt = a ? Nn(a, b) : null, val2 && (val2.debugSelectedLayerId = a ? a.id : null), document.querySelectorAll(".tl-block").forEach(a2 => a2.classList.toggle("tl-selected", yt && a2.dataset.key === yt)), document.querySelectorAll(".tl-label").forEach(a2 => a2.classList.toggle("sel", yt && a2.dataset.key === yt)), document.querySelectorAll(".st-row").forEach(a2 => a2.classList.toggle("st-sel", yt && a2.dataset.key === yt));
+  if (a) bind6(a, b, a.ce || 0); else compute12();
+  V = true;
+  try { if (typeof window.omOnLayerSelected === "function") window.omOnLayerSelected(a); } catch (e) {}
 }
 var be = [],
   kn = [];
@@ -5667,40 +6157,114 @@ function handle17() {
   if (!val) return false;
   let round = Math.round(H),
     findIndex = be.findIndex(a => Math.abs(a - round) < 60);
-  return findIndex >= 0 ? be.splice(findIndex, 1) : be.push(round), get12(), bind3(), handle9(findIndex >= 0 ? "[BOOKMARK] Penanda " + build14(round) + " dihapus (" + be.length + " tersisa)." : "[BOOKMARK] Penanda " + build14(round) + " dibuat (" + be.length + " total)."), true;
+  if (findIndex >= 0) be.splice(findIndex, 1);
+  else be.push(round);
+  get12();
+  if (val) val.bookmarks = be.slice();
+  bind3();
+  handle9(findIndex >= 0 ? "[BOOKMARK] Penanda " + build14(round) + " dihapus (" + be.length + " tersisa)." : "[BOOKMARK] Penanda " + build14(round) + " dibuat (" + be.length + " total).");
+  return true;
+}
+function jumpPrevKeyframeOrBookmark(layer) {
+  if (!val) return false;
+  const points = new Set([0]);
+  for (const b of be) points.add(b);
+  const l = layer || (typeof omLayerCur === "function" ? omLayerCur() : null);
+  if (l) {
+    points.add(l.startTime || 0);
+    if (l.endTime != null) points.add(l.endTime);
+    const kfs = sort(l, l.startTime || 0, l.endTime != null ? l.endTime : val.totalTime);
+    for (const k of kfs) points.add(k);
+  } else if (val.layers) {
+    for (const lyr of val.layers) {
+      points.add(lyr.startTime || 0);
+      if (lyr.endTime != null) points.add(lyr.endTime);
+    }
+  }
+  const sorted = [...points].filter(p => p < H - 20).sort((a, b) => b - a);
+  const target = sorted.length ? sorted[0] : 0;
+  process22(target);
+  _n();
+  return true;
+}
+function jumpNextKeyframeOrBookmark(layer) {
+  if (!val) return false;
+  const points = new Set([val.totalTime || 0]);
+  for (const b of be) points.add(b);
+  const l = layer || (typeof omLayerCur === "function" ? omLayerCur() : null);
+  if (l) {
+    points.add(l.startTime || 0);
+    if (l.endTime != null) points.add(l.endTime);
+    const kfs = sort(l, l.startTime || 0, l.endTime != null ? l.endTime : val.totalTime);
+    for (const k of kfs) points.add(k);
+  } else if (val.layers) {
+    for (const lyr of val.layers) {
+      points.add(lyr.startTime || 0);
+      if (lyr.endTime != null) points.add(lyr.endTime);
+    }
+  }
+  const sorted = [...points].filter(p => p > H + 20).sort((a, b) => a - b);
+  const target = sorted.length ? sorted[0] : (val.totalTime || 0);
+  process22(target);
+  _n();
+  return true;
 }
 function process15(a) {
-  if (!val || !be.length) return false;
-  let ref24 = be,
-    val3 = null;
-  return a > 0 ? val3 = ref24.find(a2 => a2 > H + 1) : val3 = [...ref24].reverse().find(a2 => a2 < H - 1), val3 == null ? false : (process22(val3), _n(), true);
+  return a > 0 ? jumpNextKeyframeOrBookmark() : jumpPrevKeyframeOrBookmark();
 }
 function bind3() {
   let timelineRuler = document.getElementById("timeline-ruler");
+  let timelineTracks = document.getElementById("timeline-tracks");
   if (!timelineRuler) return;
-  if (timelineRuler.querySelectorAll(".tl-bm-flag").forEach(a => a.remove()), !val) {
+  timelineRuler.querySelectorAll(".tl-bm-flag").forEach(a => a.remove());
+  if (timelineTracks) timelineTracks.querySelectorAll(".tl-bm-line").forEach(a => a.remove());
+  if (!val) {
     kn = [];
     return;
   }
   let res5 = compute11();
   kn = [];
   for (let val3 of be) {
+    let pxLeft = dt + Math.round(val3 * res5);
     let buttonEl = document.createElement("button");
-    buttonEl.type = "button", buttonEl.className = "tl-bm-flag", buttonEl.style.left = dt + Math.round(val3 * res5) + 'px', buttonEl.dataset.time = build14(val3), buttonEl.dataset.ms = String(val3), buttonEl.title = "Ke " + build14(val3) + " - klik kanan untuk membuang penanda", buttonEl.setAttribute("aria-label", buttonEl.title), buttonEl.addEventListener("click", a => {
+    buttonEl.type = "button", buttonEl.className = "tl-bm-flag", buttonEl.style.left = pxLeft + 'px', buttonEl.dataset.time = build14(val3), buttonEl.dataset.ms = String(val3), buttonEl.title = "Ke " + build14(val3) + " - klik kanan untuk membuang penanda", buttonEl.setAttribute("aria-label", buttonEl.title), buttonEl.addEventListener("click", a => {
       a.stopPropagation(), process22(val3), _n();
     }), buttonEl.addEventListener("contextmenu", a => {
       a.preventDefault(), a.stopPropagation();
       let indexOf = be.indexOf(val3);
-      indexOf >= 0 && be.splice(indexOf, 1), bind3(), handle9("[BOOKMARK] Penanda " + build14(val3) + " dihapus.");
+      indexOf >= 0 && be.splice(indexOf, 1);
+      if (val) val.bookmarks = be.slice();
+      bind3();
+      handle9("[BOOKMARK] Penanda " + build14(val3) + " dihapus.");
     }), timelineRuler.appendChild(buttonEl), kn.push(buttonEl);
+
+    if (timelineTracks) {
+      let lineEl = document.createElement("div");
+      lineEl.className = "tl-bm-line";
+      lineEl.style.left = pxLeft + 'px';
+      lineEl.dataset.ms = String(val3);
+      timelineTracks.appendChild(lineEl);
+    }
   }
   render12();
+  if (typeof window.omOnBookmarksChanged === "function") window.omOnBookmarksChanged(be, H);
 }
 function render12() {
+  let hasNear = false;
   for (let n = 0; n < kn.length; n++) {
     let val3 = be[n];
-    kn[n].classList.toggle("active", val3 !== void 0 && Math.abs(val3 - H) < 60);
+    let isAct = val3 !== void 0 && Math.abs(val3 - H) < 60;
+    kn[n].classList.toggle("active", isAct);
+    if (isAct) hasNear = true;
   }
+  let timelineTracks = document.getElementById("timeline-tracks");
+  if (timelineTracks) {
+    timelineTracks.querySelectorAll(".tl-bm-line").forEach(line => {
+      let ms = Number(line.dataset.ms);
+      line.classList.toggle("active", Math.abs(ms - H) < 60);
+    });
+  }
+  if (typeof window.omOnPlayheadBookmarkState === "function") window.omOnPlayheadBookmarkState(hasNear, H);
 }
 var wo = 0;
 function apply14(a) {
@@ -5710,6 +6274,69 @@ function apply14(a) {
     wo = now;
     for (let val3 of gi) val3.canvas.isConnected && handle15(val3.canvas, val3.source);
   }
+}
+function renderWaveformSvgBars(layer, w, h) {
+  let bars = [];
+  const barSpacing = 4;
+  const barWidth = 2.5;
+  const count = Math.max(1, Math.floor(w / barSpacing));
+  const midY = h / 2;
+  let str = (layer.id || "") + (layer.label || "") + (layer.src || "");
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  for (let i = 0; i < count; i++) {
+    let x = i * barSpacing + 1;
+    let norm = (i / Math.max(1, count));
+    let amplitude = 0.4;
+    if (layer.peaks && layer.peaks.length > 0) {
+      let pIdx = Math.floor(norm * layer.peaks.length);
+      amplitude = Math.max(0.12, Math.min(1, layer.peaks[pIdx] || 0.12));
+    } else {
+      let s1 = Math.sin(norm * 18.0 + hash * 0.1);
+      let s2 = Math.cos(norm * 42.0 + hash * 0.05);
+      let s3 = Math.sin(norm * 90.0 + (i % 7));
+      amplitude = Math.abs(s1 * 0.45 + s2 * 0.35 + s3 * 0.2);
+      let env = Math.sin(Math.min(1, Math.max(0, norm)) * Math.PI);
+      amplitude = Math.min(1, Math.max(0.12, amplitude * (0.4 + 0.6 * env)));
+    }
+    let barH = Math.max(3, Math.round(amplitude * (h - 6)));
+    let y = Math.round(midY - barH / 2);
+    bars.push(`<rect x="${x}" y="${y}" width="${barWidth}" height="${barH}" rx="1.2" fill="#00ffa8" opacity="0.85" />`);
+  }
+  return bars.join("");
+}
+function decodeAudioPeaks(layer, url) {
+  if (!url || layer.peaks) return;
+  try {
+    if (!window.__AM_AUDIO_CTX) {
+      const ACtx = window.AudioContext || window.webkitAudioContext;
+      if (ACtx) window.__AM_AUDIO_CTX = new ACtx();
+    }
+    const actx = window.__AM_AUDIO_CTX;
+    if (!actx) return;
+    fetch(url)
+      .then(res => res.arrayBuffer())
+      .then(buf => actx.decodeAudioData(buf))
+      .then(audioBuf => {
+        const rawData = audioBuf.getChannelData(0);
+        const samples = 120;
+        const blockSize = Math.floor(rawData.length / samples);
+        const peaks = [];
+        for (let i = 0; i < samples; i++) {
+          let sum = 0;
+          for (let j = 0; j < blockSize; j++) {
+            sum += Math.abs(rawData[i * blockSize + j]);
+          }
+          peaks.push(Math.min(1, (sum / blockSize) * 2.8));
+        }
+        layer.peaks = peaks;
+        if (bind4) bind4();
+      })
+      .catch(() => {});
+  } catch (e) {}
 }
 function bind4() {
   let timelineTracks = document.getElementById("timeline-tracks"),
@@ -5756,15 +6383,23 @@ function bind4() {
     }
     let spanEl = document.createElement("span");
     spanEl.className = "tl-thumb", spanEl.title = "Lihat isi layer di posisi ini";
-    let canvasEl = document.createElement("canvas");
-    canvasEl.width = nl, canvasEl.height = il, spanEl.appendChild(canvasEl);
-    let res9 = build12(a);
-    handle15(canvasEl, res9), res9 && typeof res9 == "object" && (canvasEl.dataset.thumb = "live", gi.push({
-      canvas: canvasEl,
-      source: res9
-    })), spanEl.addEventListener("click", a2 => {
-      a2.stopPropagation(), apply13(a, b), process22(val7);
-    }), divEl2.appendChild(spanEl);
+    if (a.tag === "audio") {
+      spanEl.innerHTML = `<img src="./icons/ac_ic_audio.svg" style="width:18px;height:18px;filter:brightness(0) invert(1) drop-shadow(0 0 2px #00ffa8);" alt="Audio">`;
+      spanEl.addEventListener("click", a2 => {
+        a2.stopPropagation(), apply13(a, b), process22(val7);
+      });
+    } else {
+      let canvasEl = document.createElement("canvas");
+      canvasEl.width = nl, canvasEl.height = il, spanEl.appendChild(canvasEl);
+      let res9 = build12(a);
+      handle15(canvasEl, res9), res9 && typeof res9 == "object" && (canvasEl.dataset.thumb = "live", gi.push({
+        canvas: canvasEl,
+        source: res9
+      })), spanEl.addEventListener("click", a2 => {
+        a2.stopPropagation(), apply13(a, b), process22(val7);
+      });
+    }
+    divEl2.appendChild(spanEl);
     let spanEl2 = document.createElement("span");
     spanEl2.textContent = a.label || a.id || 'L' + (b + 1), divEl2.appendChild(spanEl2);
     let divEl3 = document.createElement("div");
@@ -5776,7 +6411,7 @@ function bind4() {
       max7 = Math.max(4, Math.round(max6 * res6)),
       res10 = process13(a),
       divEl4 = document.createElement("div");
-    divEl4.className = "tl-block" + (res8 ? " tl-hidden-block" : '') + (val6 ? " tl-selected" : '') + (c > 0 ? " tl-sub-block" : ''), divEl4.dataset.key = res7;
+    divEl4.className = "tl-block" + (res8 ? " tl-hidden-block" : '') + (val6 ? " tl-selected" : '') + (c > 0 ? " tl-sub-block" : '') + (a.tag === "audio" ? " tl-audio-block" : ''), divEl4.dataset.key = res7;
     let val9 = c > 0 ? res10.bg + 'bb' : res10.bg;
     divEl4.style.cssText = "left:" + round + "px;width:" + max7 + "px;background:" + val9 + ";color:" + res10.text + ';';
     let setDrop = a2 => {
@@ -5794,9 +6429,28 @@ function bind4() {
         if (!slot2) return;
         a2.preventDefault(), a2.stopPropagation(), replaceMediaForLayer(a, files2[0]);
       };
-    for (let el of [divEl, divEl2, divEl4, spanEl, canvasEl]) el.addEventListener("dragover", setDrop), el.addEventListener("dragleave", clearDrop), el.addEventListener("drop", dropReplace);
+    for (let el of [divEl, divEl2, divEl4, spanEl]) el.addEventListener("dragover", setDrop), el.addEventListener("dragleave", clearDrop), el.addEventListener("drop", dropReplace);
     let val10 = a.label || a.id || '';
-    max7 > 28 ? divEl4.textContent = val10 : divEl4.title = val10;
+    if (a.tag === "audio") {
+      let durSec = Math.max(0, ((a.endTime || 0) - (a.startTime || 0)) / 1000);
+      let mins = Math.floor(durSec / 60);
+      let secs = Math.floor(durSec % 60);
+      let timeStr = (mins < 10 ? "0" : "") + mins + ":" + (secs < 10 ? "0" : "") + secs;
+      divEl4.innerHTML = `
+        <div class="tl-audio-header">
+          <span class="tl-audio-title">${te(val10)}</span>
+          <span class="tl-audio-dur">[${timeStr}]</span>
+        </div>
+        <svg class="tl-audio-waveform-svg" viewBox="0 0 ${Math.max(50, max7)} 28" preserveAspectRatio="none">
+          ${renderWaveformSvgBars(a, Math.max(50, max7), 28)}
+        </svg>
+      `;
+      divEl4.title = `${val10} [${timeStr}]`;
+      let { url: aUrl } = obj19(a);
+      if (aUrl && !a.peaks) decodeAudioPeaks(a, aUrl);
+    } else {
+      max7 > 28 ? divEl4.textContent = val10 : divEl4.title = val10;
+    }
     let res11 = sort(a, val7, val8),
       val11 = res11.length > 60 ? res11.filter((a2, b2) => b2 % Math.ceil(res11.length / 60) === 0) : res11;
     for (let val12 of val11) {
@@ -5827,7 +6481,7 @@ function bind4() {
           let onMove = m => {
             let dx = (m.clientX - x0) / scale0;
             moved = Math.abs(m.clientX - x0) > 2;
-            if (side === "r") a.endTime = Math.max(s0 + 100, Math.min(val.totalTime || 1e9, e0 + dx));
+            if (side === "r") a.endTime = Math.max(s0 + 100, e0 + dx);
             else a.startTime = Math.max(0, Math.min(e0 - 100, s0 + dx));
             moved && applyLive();
           };
@@ -5839,6 +6493,7 @@ function bind4() {
             }
             pushUndo(snapBefore);
             V = true;
+            omExtendTotal(Math.max(a.startTime || 0, a.endTime || 0));
             handle9("[EDIT] Layer \"" + (a.label || a.id) + "\" durasi " + Math.round(s0) + "→" + Math.round(e0) + " ms  (" + Math.round(a.startTime) + "–" + Math.round(a.endTime) + " ms)");
             bind4(), val2 && val2.renderAt(H);
           };
@@ -5857,8 +6512,8 @@ function bind4() {
         if (!moved && Math.abs(dx) < 5) return;
         moved = Math.abs(dx) >= 5;
         if (!moved) return;
-        let dur = e0 - s0, total = val.totalTime || 0,
-          ns = Math.max(0, Math.min(total - dur, s0 + dx / scaleT));
+        let dur = e0 - s0,
+          ns = Math.max(0, s0 + dx / scaleT);
         a.startTime = ns, a.endTime = ns + dur;
         divEl4.style.left = Math.round((dragBase0 + ns) * scaleT) + "px";
       };
@@ -5866,6 +6521,7 @@ function bind4() {
         window.removeEventListener("pointermove", onMove), window.removeEventListener("pointerup", onUp);
         if (!moved) return;
         pushUndo(snapT), V = true;
+        omExtendTotal(Math.max(a.startTime || 0, a.endTime || 0));
         handle9("[EDIT] Layer \"" + (a.label || a.id) + "\" dipindah ke " + Math.round(a.startTime) + " ms");
         bind4(), val2 && val2.renderAt(H);
       };
@@ -5911,6 +6567,18 @@ function bind4() {
       };
       window.addEventListener("pointermove", onMove), window.addEventListener("pointerup", onUp);
     }, { passive: false });
+    divEl4.addEventListener("dblclick", ev3 => {
+      if (ev3.target && ev3.target.classList && ev3.target.classList.contains("tl-edge")) return;
+      if (get13(a)) {
+        ev3.preventDefault(), compute13(a);
+      }
+    });
+    divEl2.addEventListener("dblclick", ev3 => {
+      if (ev3.target && ev3.target.closest && ev3.target.closest("button, .tl-thumb")) return;
+      if (get13(a)) {
+        ev3.preventDefault(), compute13(a);
+      }
+    });
     res11.length && (divEl4.title = val10 + " - " + res11.length + " keyframe"), divEl4.addEventListener("click", () => apply13(a, b)), divEl2.addEventListener("click", () => {
       apply13(a, b), process22(val7);
     }), divEl3.appendChild(divEl4), divEl.appendChild(divEl2), divEl.appendChild(divEl3), timelineTracks.appendChild(divEl), get13(a) && Ie.has(res7) && [...a.scene.layers].reverse().forEach((a2, b2) => {
@@ -5961,7 +6629,8 @@ function apply15(a) {
 }
 function get13(a) {
   let val3 = a && a.scene;
-  return (a.tag || '').toLowerCase() === "embedscene" && !!val3 && Array.isArray(val3.layers);
+  const tag = (a && a.tag || '').toLowerCase();
+  return (tag === "embedscene" || tag === "group") && !!val3 && Array.isArray(val3.layers);
 }
 function update16() {
   let sceneTreeList = document.getElementById("scene-tree-list"),
@@ -6118,7 +6787,13 @@ function bind6(a, b, c = 0) {
   querySelector4 && querySelector4.addEventListener("click", () => {
     let val13 = Y.get(val6) || val6;
     bind(val13, a2 => {
-      Y.set(val6, a2), val2 && val2.setImages(get10()), V = true, handle9("[MEDIA] Layer \"" + (a.label || a.id) + "\" memakai media \"" + a2 + '\x22.'), bind6(a, b, c);
+      let newUri2 = "am:user:" + Date.now() + ":" + Math.floor(Math.random() * 1e5);
+      Y.set(newUri2, a2);
+      if (!val.media) val.media = [];
+      val.media.push({ uri: newUri2, filename: a2, title: a2, type: "image/png" });
+      if (a.fillVideo) { a.fillVideo = newUri2; a.fillImage = ''; }
+      else { a.fillImage = newUri2; a.fillVideo = ''; }
+      val2 && val2.setImages(get10()), V = true, handle9("[MEDIA] Layer \"" + (a.label || a.id) + "\" memakai media \"" + a2 + '\" (khusus kelompok/layer ini).'), bind6(a, b, c);
     }, "Ganti media — " + (a.label || a.id || "layer"));
   });
   let querySelector5 = layerInfo.querySelector("[data-act=\"viewXml\"]");
@@ -6243,19 +6918,37 @@ function bind7() {
     if (!val || a.target.closest(".tl-block, .tl-label, .tl-eye, #timeline-ruler")) return;
     let res5 = fn8(a);
     res5 >= 0 && process22(res5);
-  }), timelineRuler.addEventListener("pointerdown", a => {
+  });
+  let scrubStartH = 0;
+  timelineRuler.addEventListener("pointerdown", a => {
     if (!(!val || a.target.closest(".tl-corner"))) {
       ri = true;
+      scrubStartH = H;
       try {
         timelineRuler.setPointerCapture(a.pointerId);
       } catch {}
-      process22(Math.max(0, fn8(a)));
+      const targetTime = Math.max(0, fn8(a));
+      process22(targetTime);
+      if (typeof window.omOnScrubStateChanged === "function") {
+        window.omOnScrubStateChanged(true, targetTime, scrubStartH);
+      }
     }
   }), timelineRuler.addEventListener("pointermove", a => {
-    ri && process22(Math.max(0, fn8(a)));
+    if (ri) {
+      const targetTime = Math.max(0, fn8(a));
+      process22(targetTime);
+      if (typeof window.omOnScrubStateChanged === "function") {
+        window.omOnScrubStateChanged(true, targetTime, scrubStartH);
+      }
+    }
   });
   let fn9 = () => {
-    ri = false;
+    if (ri) {
+      ri = false;
+      if (typeof window.omOnScrubStateChanged === "function") {
+        window.omOnScrubStateChanged(false, H, scrubStartH);
+      }
+    }
   };
   timelineRuler.addEventListener("pointerup", fn9), timelineRuler.addEventListener("pointercancel", fn9), tlZoom.value = String(je), update8(tlZoom);
   let n = 0;
@@ -6745,7 +7438,7 @@ async function render16(a, b) {
     } catch (val5) {
       arr2.push(val4.name + ':\x20' + val5.message);
     }
-    return handle24(false), val = val3, Bt = a >= 0 ? a : Bt, Y.clear(), fe.clear(), H = 0, build19(0), await handle21(), D && !qe && process10(), val2 && val2.renderAt(0), V = true, bi = '' + str + (Je.length > 1 ? " + " + (Je.length - 1) + " xml lain" : '') + (n ? " + " + n + " layer grup" : ''), process19(arr2.concat(b || []).join('\x0a')), handle9("[IMPORT] \"" + val.title + "\" dimuat: " + val.layers.length + " layer, " + val.media.length + " media, " + val.audio.length + " audio."), true;
+    return handle24(false), val = val3, Bt = a >= 0 ? a : Bt, Y.clear(), fe.clear(), (typeof omUploads !== "undefined" && omUploads && omUploads.length && typeof omRestoreMediaUploads === "function" && omRestoreMediaUploads(omUploads)), H = 0, build19(0), await handle21(), D && !qe && process10(), val2 && val2.renderAt(0), V = true, bi = '' + str + (Je.length > 1 ? " + " + (Je.length - 1) + " xml lain" : '') + (n ? " + " + n + " layer grup" : ''), process19(arr2.concat(b || []).join('\x0a')), handle9("[IMPORT] \"" + val.title + "\" dimuat: " + val.layers.length + " layer, " + val.media.length + " media, " + val.audio.length + " audio."), true;
   } catch (val3) {
     return process19("gagal memuat: " + val3.message), handle9("[IMPORT] Gagal: " + val3.message), get7("Gagal menyusun scene: " + val3.message), false;
   } finally {
@@ -7042,6 +7735,7 @@ function process21(a) {
       src: val3
     }), ye.set(res5.name, val3)), val3;
   }
+  if (/^(blob:|data:|https?:|\.\/|\/)/i.test(trim)) return trim;
   return /^[a-z][a-z0-9+.-]*:/i.test(trim) ? '' : Sn + encodeURIComponent(trim);
 }
 function compute18(a, b) {
@@ -7105,6 +7799,11 @@ async function get19() {
   try {
     let params = new URLSearchParams(location.search),
       val3 = params.get("alight") || params.get("url") || params.get("drive") || params.get("project") || params.get("xml") || params.get("preset");
+    if (!val3 && /\/proyek\//.test(location.pathname)) {
+      val2 = new Lt(re, handle9), val2.effectsEnabled = Ot.checked, val2.debugCanvas = Re, Ge = apply10(), qt = fetch("./effect-index.json").then(a => a.json()), compute19();
+      handle9("[BOOT] Membuka proyek dari URL: " + location.pathname);
+      return;
+    }
     if (Tn && !val3) {
       val2 = new Lt(re, handle9), val2.effectsEnabled = Ot.checked, val2.debugCanvas = Re, Ge = apply10(), qt = fetch("./effect-index.json").then(a => a.json()), compute19(), handle29(true);
       return;
@@ -7120,6 +7819,7 @@ async function get19() {
 }
 async function update22() {
   val2 = new Lt(re, handle9), val2.effectsEnabled = Ot.checked, val2.debugCanvas = Re, Ge = apply10(), qt = fetch("./effect-index.json").then(a => a.json()), pi = await (await fetch(ya)).text(), Kt = ya.split('/').pop(), val = update2(pi, Kt), await build15(), handle9("[MEDIA] " + ke.length + " gambar contoh di preset/: " + ke.join(',\x20')), bind8(), await handle21(), !ee.length && !bt && bind9(vt, vt.split('/').pop()), handle9("[SCENE] Siap. Tekan Putar. (" + val2.failedEffects.size + " efek dilewati)");
+  try { build13(); } catch(e) {}
   let res5 = obj15();
   handle9("[EXPORT] WebCodecs: " + (res5.webcodecs ? "ada" : "TIDAK ada") + (res5.webcodecs ? '' : " -> ekspor pakai MediaRecorder real-time")), handle9("[EXPORT] Audio track (AAC): " + (res5.audioEncoder ? "siap" : "render audio lewat Mediabunny AAC")), Nt.textContent = res5.webcodecs ? "siap - ekspor MP4 H.264 + AAC" : "siap - browser ini tidak punya WebCodecs, fallback hanya WebM real-time", process19(), compute19();
 }
@@ -7157,12 +7857,14 @@ function handle24(a) {
       D && !qe && D.pause();
     }
   }
+  if (typeof window.omOnPlayStateChanged === "function") window.omOnPlayStateChanged(flag2);
 }
 var To = 0;
 async function process22(a) {
   if (!val || ge || (H = Math.max(0, Math.min(val.totalTime, a)), build19(H), handle12({
     force: true
   }), V = true, process16(), flag2 || !val2)) return;
+  if (typeof window.omOnTimeUpdate === "function") window.omOnTimeUpdate(H, val.totalTime, val.fps || 30);
   let val3 = ++To,
     val4 = await val2.prepareMedia(H);
   val3 !== To || flag2 || val4 && val2.renderAt(H);
@@ -7196,6 +7898,7 @@ function compute19(a) {
     let val6 = val ? val.totalTime : 0;
     Ac.textContent = (H / 1000).toFixed(2) + "s / " + (val6 / 1000).toFixed(2) + 's', Sc.textContent = handle23(), Bc.textContent = flag2 ? la + " | drift " + Eo.toFixed(0) + 'ms' : la, update17();
   }
+  if ((flag2 || V) && typeof window.omOnTimeUpdate === "function") window.omOnTimeUpdate(H, val ? val.totalTime : 0, val ? val.fps || 30 : 30);
   (flag2 || V) && process16(), requestAnimationFrame(compute19);
 }
 var ma = [960, 640, 480, 360, 270];
@@ -7419,6 +8122,22 @@ async function compute20() {
             batal: "Dibatalkan",
             gagal: "Gagal"
           }[a.phase] || a.phase;
+          try {
+            let pctCalc = a.total && a.frame ? Math.min(100, Math.round((a.frame / a.total) * 100)) : (a.phase === "selesai" ? 100 : 0);
+            let etaCalc = a.avgMs && a.total && a.frame ? Math.max(0, a.avgMs * (a.total - a.frame)) : 0;
+            window.dispatchEvent(new CustomEvent("am-export-progress", {
+              detail: {
+                phase: a.phase,
+                frame: a.frame || 0,
+                total: a.total || 0,
+                pct: pctCalc,
+                etaMs: etaCalc,
+                avgMs: a.avgMs || 0,
+                status: val23,
+                message: a.message || ''
+              }
+            }));
+          } catch(e){}
           if (a.phase !== "render" && render6("export", "Mengekspor video…", val23), a.phase === "prepare" || a.phase === "mux" || a.phase === "finalize" || a.phase === "encode") {
             a.message && handle9("[EXPORT] " + val23 + ':\x20' + a.message), process23('' + val23 + (a.message ? " - " + a.message : ''));
             return;
@@ -7472,7 +8191,10 @@ async function compute20() {
     }
     let val21 = performance.now() - now,
       val22 = (val.title || "preset").replace(/[^\w.-]+/g, '_') + '-' + val14 + 'p' + res5 + "fps.mp4";
-    if (De || val20.status === "cancelled" || val20.cancelled) ae = "cancelled", process23("dibatalkan di frame " + val20.frames + '\x20(' + update23(val21) + ')'), handle9("[EXPORT] Dibatalkan setelah " + val20.frames + " frame.");else {
+    if (De || val20.status === "cancelled" || val20.cancelled) {
+      ae = "cancelled", process23("dibatalkan di frame " + val20.frames + '\x20(' + update23(val21) + ')'), handle9("[EXPORT] Dibatalkan setelah " + val20.frames + " frame.");
+      try { window.dispatchEvent(new CustomEvent("am-export-cancelled")); } catch(e){}
+    } else {
       if (val20.status !== "success" || !val20.blob) throw new Error("Ekspor tidak selesai dengan benar (status: " + (val20.status || "tidak diketahui") + ').');
       {
         Ve = URL.createObjectURL(val20.blob);
@@ -7493,10 +8215,43 @@ async function compute20() {
           divEl.textContent = "preview file hasil ekspor (MP4/" + val23 + " + AAC, " + val20.audio.channels + "ch " + val20.audio.sampleRate + "Hz)", mn.appendChild(videoEl), mn.appendChild(divEl);
         }
         mn.appendChild(linkEl), ae = "success", process23("selesai: " + val20.frames + " frame, " + handle25(val20.blob.size) + ',\x20' + update23(val21) + "\nfile: " + val20.width + 'x' + val20.height + " @ " + val20.fps + "fps, " + (val20.bitrate ? (val20.bitrate / 1000000).toFixed(1) + " Mbps" : '-') + " (diminta " + val13 + 'x' + val14 + ')' + (val20.profile ? "\nper frame: seek video " + val20.profile.prepare.toFixed(0) + " ms | render " + val20.profile.render.toFixed(0) + " | ambil+encode " + val20.profile.encode.toFixed(0) + " | antre " + val20.profile.queue.toFixed(0) : '') + ("\ntrack audio: " + (val20.audio ? "AAC " + val20.audio.channels + "ch " + val20.audio.sampleRate + 'Hz' : "tidak ada") + "\nrata-rata " + (val21 / val20.frames).toFixed(1) + " ms/frame (" + (val20.frames / (val21 / 1000)).toFixed(1) + " frame/detik saat ekspor)\n" + join2(arr2))), val20.profile && handle9("[EXPORT] Profil per frame (ms): " + JSON.stringify(val20.profile, (a, b) => typeof b == "number" ? Math.round(b) : b) + "; file " + val20.width + 'x' + val20.height), handle9("[EXPORT] Selesai: " + val20.frames + " frame, " + handle25(val20.blob.size) + ", codec " + val20.codec + ", mode " + val20.mode + ", audio " + (val20.audio ? "AAC" : "tidak ada") + ',\x20' + update23(val21) + '.');
+        try {
+          if (window.__AM_INTERNAL) {
+            window.__AM_INTERNAL._lastExport = {
+              blob: val20.blob,
+              url: Ve,
+              filename: val22,
+              frames: val20.frames,
+              width: val20.width,
+              height: val20.height,
+              fps: val20.fps,
+              bitrate: val20.bitrate,
+              codec: val20.codec,
+              duration: (val?.totalTime || 0) / 1000
+            };
+          }
+          window.dispatchEvent(new CustomEvent("am-export-complete", {
+            detail: {
+              blob: val20.blob,
+              url: Ve,
+              filename: val22,
+              frames: val20.frames,
+              width: val20.width,
+              height: val20.height,
+              fps: val20.fps,
+              bitrate: val20.bitrate,
+              codec: val20.codec,
+              duration: (val?.totalTime || 0) / 1000
+            }
+          }));
+        } catch(e){}
       }
     }
   } catch (val20) {
     ae = De ? "cancelled" : "failed", pt = val20.message, val20.audioFailure ? (process23("GAGAL (audio): " + val20.message), handle9("[EXPORT] Audio gagal -> ekspor dibatalkan: " + val20.message), get7("Audio diminta, tetapi gagal diproses. Ekspor dibatalkan supaya tidak menghasilkan video tanpa suara.\n\n" + val20.message)) : De ? (process23("dibatalkan: " + val20.message), handle9("[EXPORT] Dibatalkan: " + val20.message)) : (process23("GAGAL: " + val20.message), handle9("[EXPORT] Gagal: " + val20.message), get7("Ekspor gagal: " + val20.message));
+    try {
+      window.dispatchEvent(new CustomEvent("am-export-error", { detail: { message: val20.message || String(val20) } }));
+    } catch(e){}
   } finally {
     compute5(), se = false, apply7("export"), Ze.disabled = false, val2.directVideoEnabled = val19, val2.setMediaMode("preview"), val2.pauseMedia(), val2.setResolution(val3), getPos(), V = true, Mi.textContent = val2.workWidth + 'x' + val2.workHeight + " (canvas " + re.width + 'x' + re.height + ')';
   }
@@ -8087,29 +8842,83 @@ document.getElementById("lightbox").addEventListener("close", () => {
 }), typeof ResizeObserver == "function" && new ResizeObserver(() => getPos()).observe(wi);
 var vn = 0;
 function replaceMediaForLayer(a, file2) {
-  if (!a || !file2 || a.fillType !== "media") return;
-  let uri2 = a.fillVideo || a.fillImage,
-    slot2 = (val.media || []).find(a3 => a3.uri === uri2);
-  if (!slot2) throw new Error("Slot media untuk layer \"" + (a.label || a.id) + "\" tidak ditemukan");
-  let name2 = file2.name,
-    url2 = URL.createObjectURL(file2),
-    newUri2 = "am:user:" + Date.now() + ":" + Math.floor(Math.random() * 1e5),
-    isVid2 = /\.(mp4|webm|ogv|mov|m4v)$/i.test(name2);
-  Et.set(name2, {
-    name: name2,
+  if (!a || !file2) return Promise.resolve(false);
+  const snap0 = sceneSnapshot ? sceneSnapshot() : null;
+  const uniqueId = Date.now().toString(36) + "_" + Math.floor(Math.random() * 1e5);
+  const cleanBase = (file2.name || "media").replace(/[^a-zA-Z0-9._-]/g, "_");
+  const uniqueName = uniqueId + "_" + cleanBase;
+  let url2 = URL.createObjectURL(file2),
+    newUri2 = "am:user:" + uniqueId,
+    isVid2 = /^video\//.test(file2.type) || /\.(mp4|webm|ogv|mov|m4v)$/i.test(file2.name);
+
+  Et.set(uniqueName, {
+    name: uniqueName,
     src: url2
-  }), ce.push(Et.get(name2)), ke.includes(name2) || ke.push(name2), Y.set(newUri2, name2), val.media.push({
+  });
+  if (!ce.some(x => x.name === uniqueName)) ce.push(Et.get(uniqueName));
+  if (!ke.includes(uniqueName)) ke.push(uniqueName);
+  Y.set(newUri2, uniqueName);
+
+  if (!val.media) val.media = [];
+  val.media.push({
     uri: newUri2,
     type: file2.type || (isVid2 ? "video/mp4" : "image/png"),
-    filename: name2,
-    title: name2,
+    filename: uniqueName,
+    title: file2.name,
     duration: 0,
     width: 0,
     height: 0,
     orientation: 0
-  }), isVid2 ? (a.fillVideo = newUri2, a.fillImage = '') : (a.fillImage = newUri2, a.fillVideo = '');
-  return apply11(name2).then(() => {
-    val2.setImages(get10()), V = true, compute10(), bind8(), handle9("[REPLACE] Layer \"" + (a.label || a.id) + "\" diganti (khusus layer ini): " + name2);
+  });
+
+  const targetLayers = [];
+  if (a.tag === "embedScene" && a.scene && a.scene.layers) {
+    for (const sub of a.scene.layers) {
+      if (sub.fillType === "media" || sub.fillImage || sub.fillVideo) {
+        targetLayers.push(sub);
+      }
+    }
+  } else {
+    targetLayers.push(a);
+  }
+
+  for (const l of targetLayers) {
+    l.fillType = "media";
+    if (isVid2) {
+      l.fillVideo = newUri2;
+      l.fillImage = '';
+    } else {
+      l.fillImage = newUri2;
+      l.fillVideo = '';
+    }
+    l.mediaUrl = url2;
+    if (l.sourceXml) {
+      if (/\sfillImage="[^"]*"/.test(l.sourceXml)) l.sourceXml = l.sourceXml.replace(/\sfillImage="[^"]*"/g, ` fillImage="${newUri2}"`);
+      if (/\sfillVideo="[^"]*"/.test(l.sourceXml)) l.sourceXml = l.sourceXml.replace(/\sfillVideo="[^"]*"/g, ` fillVideo="${newUri2}"`);
+    }
+  }
+
+  return apply11(uniqueName).then(() => {
+    val2.setImages(get10());
+    V = true;
+    compute10();
+    bind8();
+    if (snap0 && pushUndo) pushUndo(snap0);
+    handle9("[REPLACE] Layer \"" + (a.label || a.id) + "\" diganti: " + file2.name);
+    omUploadFile(file2, uniqueName).then(up => {
+      if (!up) return;
+      omUploads = omUploads.filter(x => x.uri !== newUri2);
+      omUploads.push({
+        uri: newUri2,
+        name: uniqueName,
+        file: up.name,
+        url: up.url
+      });
+      const ent = Et.get(uniqueName);
+      ent && (ent.src = up.url);
+      val2.setImages(get10());
+      omScheduleSave();
+    }).catch(() => {});
     return true;
   }).catch(a3 => {
     handle9("[REPLACE] " + a3.message);
@@ -8130,29 +8939,235 @@ function cloneLayerSafe(layer) {
   }
 }
 function splitLayerAt(layer) {
-  const arr = findParentArray(layer);
-  if (!arr) return handle9("[EDIT] split: urutan layer tidak ditemukan");
-  const s = layer.startTime || 0,
-    e = layer.endTime != null ? layer.endTime : (val.totalTime || 0),
-    t = H;
-  if (t <= s + 50 || t >= e - 50) return handle9("[EDIT] split: geser playhead dulu ke dalam layer (±50ms dari ujung)");
-  const snap = sceneSnapshot(), copy = cloneLayerSafe(layer);
-  copy.startTime = t, layer.endTime = t;
-  const i = arr.indexOf(layer);
-  i >= 0 && arr.splice(i + 1, 0, copy);
+  const ids = omMulti.size ? omMultiIds() : [];
+  const targets = ids.length ? ids.map(id => omResolveLayer(id)).filter(Boolean) : [layer || omLayerCur()].filter(Boolean);
+  if (!targets.length) return handle9("[EDIT] split: pilih layer terlebih dahulu");
+  const snap = sceneSnapshot();
+  let count = 0;
+  let lastCopy = null;
+  for (const l of targets) {
+    const arr = findParentArray(l);
+    if (!arr) continue;
+    const s = l.startTime || 0,
+      e = l.endTime != null ? l.endTime : (val ? val.totalTime : 0),
+      t = H;
+    if (t <= s + 50 || t >= e - 50) continue;
+    const copy = cloneLayerSafe(l);
+    copy.id = "layer_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7);
+    copy.startTime = t;
+    l.endTime = t;
+    const cut = t - s;
+    if (l.inTime != null || l.outTime != null || l.src || l.fillVideo) {
+      copy.inTime = (l.inTime || 0) + cut;
+      l.outTime = (l.inTime || 0) + cut;
+    }
+    const i = arr.indexOf(l);
+    if (i >= 0) {
+      arr.splice(i + 1, 0, copy);
+      count++;
+      lastCopy = copy;
+    }
+  }
+  if (!count) return handle9("[EDIT] split: geser playhead dulu ke dalam layer (±50ms dari ujung)");
   pushUndo(snap), V = true;
-  handle9("[EDIT] Split \"" + (layer.label || layer.id) + "\" di " + Math.round(t) + " ms");
+  handle9("[EDIT] Split " + count + " layer di " + Math.round(H) + " ms");
   bind4(), val2 && val2.renderAt(H);
+  if (lastCopy) apply13(lastCopy);
 }
 function duplicateLayer(layer) {
-  const arr = findParentArray(layer);
-  if (!arr) return;
-  const snap = sceneSnapshot(), copy = cloneLayerSafe(layer);
-  const i = arr.indexOf(layer);
-  i >= 0 ? arr.splice(i + 1, 0, copy) : arr.push(copy);
+  const ids = omMulti.size ? omMultiIds() : [];
+  const targets = ids.length ? ids.map(id => omResolveLayer(id)).filter(Boolean) : [layer || omLayerCur()].filter(Boolean);
+  if (!targets.length) return;
+  const snap = sceneSnapshot();
+  const newLayers = [];
+  targets.forEach(target => {
+    const arr = findParentArray(target);
+    if (!arr) return;
+    const copy = cloneLayerSafe(target);
+    copy.id = "layer_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7);
+    const i = arr.indexOf(target);
+    i >= 0 ? arr.splice(i + 1, 0, copy) : arr.push(copy);
+    newLayers.push(copy);
+  });
+  if (!newLayers.length) return;
   pushUndo(snap), V = true;
-  handle9("[EDIT] Duplikat layer \"" + (layer.label || layer.id) + "\"");
+  handle9(newLayers.length === 1 ? "Duplikat 1 lapisan" : `Duplikat ${newLayers.length} lapisan`);
   bind4(), val2 && val2.renderAt(H);
+  if (newLayers.length === 1) {
+    apply13(newLayers[0]);
+  } else {
+    omMulti.clear();
+    newLayers.forEach(l => omMulti.add(l.id));
+    omMultiRefresh();
+  }
+  omScheduleSave();
+  return newLayers;
+}
+function omCopyLayers(layers) {
+  const ids = omMulti.size ? omMultiIds() : [];
+  const targets = (layers && layers.length) ? layers : (ids.length ? ids.map(id => omResolveLayer(id)).filter(Boolean) : [omLayerCur()].filter(Boolean));
+  if (!targets.length) return [];
+  window.__omClipboardLayers = targets.map(l => cloneLayerSafe(l));
+  const count = window.__omClipboardLayers.length;
+  handle9(count === 1 ? "1 Lapisan disalin ke papan klip" : `${count} Lapisan disalin ke papan klip`);
+  return window.__omClipboardLayers;
+}
+function omPasteLayers() {
+  if (!window.__omClipboardLayers || !window.__omClipboardLayers.length) return;
+  const arr = (val && val.layers) || [];
+  if (!arr) return;
+  const snap = sceneSnapshot();
+  const minStart = Math.min(...window.__omClipboardLayers.map(l => l.startTime || 0));
+  const offset = H - minStart;
+  const newLayers = [];
+  window.__omClipboardLayers.forEach(orig => {
+    const copy = cloneLayerSafe(orig);
+    copy.id = "layer_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 7);
+    const dur = (copy.endTime != null ? copy.endTime : (val ? val.totalTime : 0)) - (copy.startTime || 0);
+    copy.startTime = Math.max(0, (copy.startTime || 0) + offset);
+    copy.endTime = copy.startTime + Math.max(100, dur);
+    arr.push(copy);
+    newLayers.push(copy);
+  });
+  pushUndo(snap), V = true;
+  bind4(), val2 && val2.renderAt(H);
+  if (newLayers.length === 1) {
+    apply13(newLayers[0]);
+  } else if (newLayers.length > 1) {
+    omMulti.clear();
+    newLayers.forEach(l => omMulti.add(l.id));
+    omMultiRefresh();
+  }
+  handle9(newLayers.length === 1 ? "1 Lapisan ditempel" : `${newLayers.length} Lapisan ditempel`);
+  omScheduleSave();
+  return newLayers;
+}
+function omCopyStyle(layer) {
+  const target = layer || omLayerCur();
+  if (!target) return;
+  window.__omClipboardStyle = {
+    sourceId: target.id,
+    sourceLabel: target.label || target.id,
+    colorFill: {
+      fillColor: target.fillColor,
+      fillType: target.fillType,
+      fillImage: target.fillImage,
+      fillVideo: target.fillVideo,
+      gradient: target.gradient ? cloneLayerSafe(target.gradient) : null,
+      src: target.src
+    },
+    borderShadow: {
+      strokeEnabled: target.strokeEnabled,
+      strokeColor: target.strokeColor,
+      strokeWidth: target.strokeWidth,
+      strokeCap: target.strokeCap,
+      strokeJoin: target.strokeJoin,
+      strokePosition: target.strokePosition,
+      strokeAlign: target.strokeAlign,
+      strokeDash: target.strokeDash,
+      shadowEnabled: target.shadowEnabled,
+      shadowColor: target.shadowColor,
+      shadowRadius: target.shadowRadius,
+      shadowX: target.shadowX,
+      shadowY: target.shadowY,
+      shadowAlpha: target.shadowAlpha,
+      border: target.border ? cloneLayerSafe(target.border) : null,
+      shadow: target.shadow ? cloneLayerSafe(target.shadow) : null
+    },
+    blendingOpacity: {
+      opacity: target.opacity != null ? target.opacity : 1,
+      blendMode: target.blendMode || "normal",
+      maskType: target.maskType
+    },
+    moveTransform: {
+      transform: target.transform ? cloneLayerSafe(target.transform) : null,
+      location: target.location ? cloneLayerSafe(target.location) : null,
+      scale: target.scale ? cloneLayerSafe(target.scale) : null,
+      rotation: target.rotation != null ? target.rotation : null,
+      skew: target.skew != null ? target.skew : null,
+      pivot: target.pivot ? cloneLayerSafe(target.pivot) : null
+    },
+    text: target.text != null ? {
+      text: target.text,
+      fontFamily: target.fontFamily,
+      fontSize: target.fontSize,
+      textAlign: target.textAlign,
+      textColor: target.textColor,
+      lineHeight: target.lineHeight,
+      letterSpacing: target.letterSpacing
+    } : null,
+    effects: Array.isArray(target.effects) ? cloneLayerSafe(target.effects) : (target.visualEffects ? cloneLayerSafe(target.visualEffects) : []),
+    speed: target.speed != null ? target.speed : (target.timeScale != null ? target.timeScale : 1.0)
+  };
+  handle9("Gaya lapisan disalin");
+  return window.__omClipboardStyle;
+}
+function omPasteStyle(options = {}) {
+  if (!window.__omClipboardStyle) {
+    handle9("Belum ada gaya lapisan yang disalin");
+    return;
+  }
+  const targets = omMulti.size ? omMultiIds().map(omResolveLayer).filter(Boolean) : [omLayerCur()].filter(Boolean);
+  if (!targets.length) {
+    handle9("Pilih layer tujuan terlebih dahulu");
+    return;
+  }
+  const style = window.__omClipboardStyle;
+  const snap = sceneSnapshot();
+  targets.forEach(layer => {
+    if (options.colorFill !== false && style.colorFill) {
+      if (style.colorFill.fillColor !== undefined) layer.fillColor = style.colorFill.fillColor;
+      if (style.colorFill.fillType !== undefined) layer.fillType = style.colorFill.fillType;
+      if (style.colorFill.fillImage !== undefined) layer.fillImage = style.colorFill.fillImage;
+      if (style.colorFill.fillVideo !== undefined) layer.fillVideo = style.colorFill.fillVideo;
+      if (style.colorFill.gradient) layer.gradient = cloneLayerSafe(style.colorFill.gradient);
+      if (style.colorFill.src !== undefined) layer.src = style.colorFill.src;
+    }
+    if (options.borderShadow !== false && style.borderShadow) {
+      Object.assign(layer, cloneLayerSafe(style.borderShadow));
+    }
+    if (options.blendingOpacity !== false && style.blendingOpacity) {
+      if (style.blendingOpacity.opacity !== undefined) layer.opacity = style.blendingOpacity.opacity;
+      if (style.blendingOpacity.blendMode !== undefined) layer.blendMode = style.blendingOpacity.blendMode;
+      if (style.blendingOpacity.maskType !== undefined) layer.maskType = style.blendingOpacity.maskType;
+    }
+    if (options.moveTransform !== false && style.moveTransform) {
+      if (style.moveTransform.transform) layer.transform = cloneLayerSafe(style.moveTransform.transform);
+      if (style.moveTransform.location) layer.location = cloneLayerSafe(style.moveTransform.location);
+      if (style.moveTransform.scale) layer.scale = cloneLayerSafe(style.moveTransform.scale);
+      if (style.moveTransform.rotation !== null) layer.rotation = style.moveTransform.rotation;
+      if (style.moveTransform.skew !== null) layer.skew = style.moveTransform.skew;
+      if (style.moveTransform.pivot) layer.pivot = cloneLayerSafe(style.moveTransform.pivot);
+    }
+    if (options.text !== false && style.text && (layer.text != null || layer.type === 'text')) {
+      if (style.text.fontFamily) layer.fontFamily = style.text.fontFamily;
+      if (style.text.fontSize) layer.fontSize = style.text.fontSize;
+      if (style.text.textAlign) layer.textAlign = style.text.textAlign;
+      if (style.text.textColor) layer.textColor = style.text.textColor;
+      if (style.text.lineHeight) layer.lineHeight = style.text.lineHeight;
+      if (style.text.letterSpacing) layer.letterSpacing = style.text.letterSpacing;
+    }
+    if (options.effects !== false && style.effects) {
+      layer.effects = cloneLayerSafe(style.effects);
+      if (layer.visualEffects) layer.visualEffects = cloneLayerSafe(style.effects);
+    }
+    if (options.speed !== false && style.speed != null) {
+      layer.speed = style.speed;
+      layer.timeScale = style.speed;
+    }
+  });
+  pushUndo(snap), V = true;
+  bind4(), val2 && val2.renderAt(H);
+  handle9("Gaya lapisan ditempel");
+  omScheduleSave();
+}
+function omMultiSelectAll() {
+  const currentLayers = (val && val.layers) || [];
+  omMulti.clear();
+  currentLayers.forEach(l => {
+    if (l && l.id) omMulti.add(l.id);
+  });
+  omMultiRefresh();
 }
 function deleteLayer(layer) {
   const arr = findParentArray(layer);
@@ -8162,6 +9177,7 @@ function deleteLayer(layer) {
   const snap = sceneSnapshot();
   arr.splice(i, 1), pushUndo(snap), V = true;
   handle9("[EDIT] Hapus layer \"" + (layer.label || layer.id) + "\"");
+  try { render8(); } catch(e){}
   bind4(), val2 && val2.renderAt(H);
 }
 function openLayerCtx(a, x2, y2) {
@@ -8187,8 +9203,42 @@ function openLayerCtx(a, x2, y2) {
   add("Split di playhead", () => splitLayerAt(a));
   add("Duplikat layer", () => duplicateLayer(a));
   add("Hapus layer", () => deleteLayer(a));
+  if (get13(a)) add("Buka grup", () => compute13(a));
+  if (Te.length) add("Kembali ke grup induk", () => render13());
+  if (!get13(a) && !Te.length) add("Masukkan ke grup…", () => {
+    const groups = [];
+    omWalkScenes(val, sc => {
+      (sc.layers || []).forEach(l => {
+        if (l.tag === "embedScene") groups.push(l);
+      });
+    });
+    if (!groups.length) return handle9("[GRUP] belum ada grup untuk dimasukkan");
+    const dlg = document.createElement("div");
+    dlg.id = "om-move-group-back";
+    dlg.style.cssText = "position:fixed;inset:0;z-index:100006;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:14px";
+    dlg.innerHTML = '<div class="om-dialog" style="max-width:320px;width:100%"><h2>Masukkan ke grup</h2><label class="field">Pilih grup<select id="om-move-grp"></select></label><div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px"><button class="btn" type="button" id="om-move-cancel">Batal</button><button class="btn primary" type="button" id="om-move-ok">Masukkan</button></div></div>';
+    document.body.appendChild(dlg);
+    const sel = dlg.querySelector("#om-move-grp");
+    groups.forEach((g, i) => { const o = document.createElement("option"); o.value = g.id || String(i); o.textContent = g.label || g.id || ("Grup " + (i+1)); sel.appendChild(o); });
+    dlg.querySelector("#om-move-cancel").addEventListener("click", () => dlg.remove());
+    dlg.addEventListener("click", e => { if (e.target === dlg) dlg.remove(); });
+    dlg.querySelector("#om-move-ok").addEventListener("click", () => {
+      const gid = sel.value;
+      const g = groups.find(x => x.id === gid) || groups[Number(gid)] || groups[0];
+      if (!g || !g.scene || !Array.isArray(g.scene.layers)) return dlg.remove();
+      const snap = sceneSnapshot();
+      const par = findParentArray(a);
+      if (par) { const idx = par.indexOf(a); if (idx >= 0) par.splice(idx, 1); }
+      g.scene.layers.push(a);
+      pushUndo(snap), V = true;
+      dlg.remove();
+      handle9("[GRUP] " + (a.label || a.id) + " dimasukkan ke grup");
+      omHandle21InContext().then(() => val2 && val2.renderAt(H));
+    });
+  });
   document.body.appendChild(menu), ctxMenu = menu, setTimeout(() => {
-    let once = () => {
+    let once = ev => {
+      if (ev && ev.target && ctxMenu && ctxMenu.contains(ev.target)) return;
       closeLayerCtx(), window.removeEventListener("pointerdown", once), window.removeEventListener("scroll", once, true), window.removeEventListener("contextmenu", once);
     };
     window.addEventListener("pointerdown", once), window.addEventListener("scroll", once, true), window.addEventListener("contextmenu", once);
@@ -8213,6 +9263,42 @@ function openLayerCtx(a, x2, y2) {
 .tl-label:active { cursor: grabbing; }`;
   document.head.appendChild(s);
 })();
+(function omStyles() {
+  const s = document.getElementById("om-feature-style");
+  if (!s) return;
+  s.textContent += `
+#om-landing { position: fixed; inset: 0; z-index: 100000; background: linear-gradient(160deg,#090a0e,#121524 60%,#0b1418); display: flex; align-items: center; justify-content: center; }
+.om-card { text-align: center; padding: 36px; max-width: 420px; }
+.om-logo { font-size: 2.1rem; font-weight: 700; letter-spacing: .5px; background: linear-gradient(90deg,#1fc8ee,#a793ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.om-sub { color: var(--muted); margin: 10px 0 26px; font-size: .9rem; }
+.om-btn { display: block; width: 100%; padding: 13px; border: 0; border-radius: 12px; font-weight: 700; font-size: 1rem; cursor: pointer; }
+.om-btn.primary { background: var(--accent); color: var(--accent-ink); }
+#om-dialog-back { position: fixed; inset: 0; z-index: 100001; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.om-dialog { width: 100%; max-width: 460px; max-height: 88vh; overflow: auto; background: var(--panel); border: 1px solid var(--line2); border-radius: 16px; padding: 18px; }
+.om-dialog h2 { font-size: 1.05rem; margin-bottom: 14px; }
+.om-field { margin-bottom: 14px; }
+.om-field > label { display: block; font-size: .78rem; color: var(--muted); margin-bottom: 6px; }
+.om-row { display: flex; gap: 6px; align-items: center; }
+.om-row input[type="text"], .om-row input[type="number"] { flex: 1; min-width: 0; background: var(--card); border: 1px solid var(--line2); border-radius: 9px; color: var(--text); padding: 9px 10px; }
+.om-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.om-chip { padding: 7px 11px; border-radius: 9px; border: 1px solid var(--line2); background: var(--card); color: var(--text); font-size: .78rem; cursor: pointer; }
+.om-chip.on { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 700; }
+.om-sw { width: 34px; height: 34px; border-radius: 9px; border: 2px solid var(--line2); cursor: pointer; padding: 0; }
+.om-sw.on { border-color: #fff; outline: 2px solid var(--accent); }
+.iconbtn { border: 1px solid var(--line2); background: var(--card); color: var(--text); border-radius: 9px; width: 36px; height: 36px; cursor: pointer; flex: none; }
+.iconbtn.on { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.om-sizeinfo { font-size: .8rem; color: var(--muted); margin-top: 8px; }
+.om-sizeinfo b { color: var(--text); }
+#om-add-menu { position: fixed; z-index: 9999; background: var(--panel); border: 1px solid var(--line2); border-radius: 14px; box-shadow: 0 12px 34px rgba(0,0,0,.5); padding: 10px; width: 330px; max-height: 72vh; overflow: auto; }
+#om-add-menu h4 { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 10px 2px 6px; }
+.om-shapes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.om-shapes button { padding: 8px 3px; font-size: .68rem; }
+.om-items { display: flex; flex-direction: column; gap: 6px; }
+.om-items button { text-align: left; padding: 9px 10px; }
+.om-recent { margin-top: 22px; text-align: left; max-height: 32vh; overflow: auto; }
+.om-recent h4 { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 8px; }
+.om-recent button { width: 100%; text-align: left; margin-bottom: 6px; }`;
+})();
 (function bindTimelineWheelZoom() {
   const wrap = document.getElementById("timeline-wrap");
   if (!wrap || wrap.__zoomWheel) return;
@@ -8222,6 +9308,2216 @@ function openLayerCtx(a, x2, y2) {
     e.preventDefault();
     get11(je * (e.deltaY < 0 ? 1.25 : 0.8), true);
   }, { passive: false });
+})();
+const OM_SHAPES = {
+  ".circle": "Circle", ".rect": "Rectangle", ".plus": "Plus", ".arc": "Arc",
+  ".triangle": "Triangle", ".pie": "Pie", ".poly": "Polygon", ".multifoil": "Multifoil",
+  ".arrow": "Arrow", ".quad": "Quad", ".roundrect": "Rounded Rect", ".star": "Star",
+  ".line": "Line", ".wideline": "Wide Line", ".callout.roundrect": "Callout",
+  ".moon": "Moon", ".teardrop": "Teardrop", ".stamp": "Stamp", ".penta": "Pentagon"
+};
+function omId() {
+  return "om" + Math.random().toString(36).slice(2, 9);
+}
+function omMeta() {
+  const ctx = typeof obj21 === "function" ? obj21() : null;
+  const sc = ctx && ctx.scene || null;
+  return {
+    w: Math.round(sc && sc.width || val && val.width || 1080),
+    h: Math.round(sc && sc.height || val && val.height || 1920),
+    total: Math.round(sc && sc.totalTime || val && val.totalTime || 10000),
+    fps: Math.round(sc && sc.fps || val && val.fps || 30)
+  };
+}
+function omCurrentLayers() {
+  const ctx = typeof obj21 === "function" ? obj21() : null;
+  if (ctx && ctx.scene && Array.isArray(ctx.scene.layers)) return ctx.scene.layers;
+  return val ? val.layers : [];
+}
+function omCurrentScene() {
+  const ctx = typeof obj21 === "function" ? obj21() : null;
+  return ctx && ctx.scene && Array.isArray(ctx.scene.layers) ? ctx.scene : val;
+}
+async function omHandle21InContext() {
+  const teSave = Te.slice(), ieSave = new Set(Ie);
+  await handle21();
+  if (teSave.length) {
+    Te = teSave, Ie = ieSave, handle18();
+  }
+}
+function omWalkScenes(sc, cb) {
+  if (!sc) return;
+  cb(sc);
+  (sc.layers || []).forEach(l => {
+    l.scene && omWalkScenes(l.scene, cb);
+    (l.children || []).forEach(ch => {
+      ch.scene && omWalkScenes(ch.scene, cb);
+    });
+  });
+}
+function omTransformXml(cx, cy, scale) {
+  return '<transform><location value="' + cx + ',' + cy + ',0" /><scale value="' + scale + ',' + scale + '" /><rotation value="0" /><opacity value="1" /></transform>';
+}
+function omParseLayer(xml) {
+  try {
+    const doc = new DOMParser().parseFromString(xml, "text/xml");
+    if (!doc.documentElement || doc.querySelector("parsererror")) return null;
+    return ref8(doc.documentElement);
+  } catch (e) {
+    return null;
+  }
+}
+async function omAddLayer(layer, label) {
+  if (!val) return handle9("[EDIT] belum ada proyek");
+  if (!layer) return handle9("[EDIT] gagal membuat layer");
+  const snap = sceneSnapshot();
+  omCurrentLayers().push(layer), pushUndo(snap), V = true;
+  handle9("[EDIT] Tambah layer \"" + (layer.label || label || layer.id) + "\"" + (Te.length ? " (di dalam grup)" : ""));
+  await omHandle21InContext();
+  return layer;
+}
+function omAddShape(key) {
+  const m = omMeta(), s = Math.round(Math.min(m.w, m.h) * 0.6), label = OM_SHAPES[key] || key;
+  const xml = '<shape id="' + omId() + '" label="' + label + '" startTime="0" endTime="' + m.total + '" fillType="color" s="' + key + '"><property name="size" type="vec2" value="' + s + ',' + s + '" /><fillColor value="#ff3366ff" />' + omTransformXml(Math.round(m.w / 2), Math.round(m.h / 2), 1) + '</shape>';
+  return omAddLayer(omParseLayer(xml), label);
+}
+function omAddText() {
+  const m = omMeta();
+  const xml = '<text id="' + omId() + '" label="Teks" startTime="0" endTime="' + m.total + '" size="' + Math.round(Math.min(m.w, m.h) * 0.12) + '" align="center"><content>Teks</content><fillColor value="#ffffffff" />' + omTransformXml(Math.round(m.w / 2), Math.round(m.h / 2), 1) + '</text>';
+  return omAddLayer(omParseLayer(xml), "Teks");
+}
+function omAddSimple(tag, label, child) {
+  const m = omMeta();
+  const xml = '<' + tag + ' id="' + omId() + '" label="' + label + '" startTime="0" endTime="' + m.total + '">' + (child || '') + omTransformXml(Math.round(m.w / 2), Math.round(m.h / 2), 1) + '</' + tag + '>';
+  return omAddLayer(omParseLayer(xml), label);
+}
+function omAddCamera() {
+  const m = omMeta();
+  const fov = 60;
+  const wh = val2 && val2.workHeight ? val2.workHeight : m.h;
+  const val9 = wh / m.h;
+  const Z = +(wh / (2 * Math.tan(fov * Math.PI / 360))).toFixed(2);
+  const X = +(m.w / 2 * val9).toFixed(2);
+  const Y = +(m.h / 2 * val9).toFixed(2);
+  const xml = '<camera id="' + omId() + '" label="Kamera" type="perspective" startTime="0" endTime="' + m.total + '"><fov value="' + fov + '" /><transform><location value="' + X + ',' + Y + ',' + Z + '" /><scale value="1,1" /><rotation value="0" /></transform><focus-blur enabled="false"><distance value="' + Z + '" /><depth-of-field value="100" /><strength value="0.5" /></focus-blur><fog enabled="false"><color value="#ffffffff" /><near-z value="0" /><far-z value="' + Math.round(Z * 1.5) + '" /></fog></camera>';
+  const layer = omParseLayer(xml);
+  if (!layer) return omAddLayer(layer, "Kamera");
+  layer.fillType = "none";
+  layer.opaque = false;
+  layer.cameraType = "perspective";
+  layer.fov = 60;
+  layer.cameraZoom = parseFloat(Z) || 500;
+  layer.focusBlur = { enabled: false, distance: parseFloat(Z) || 500, depthOfField: 100, strength: 0.5 };
+  layer.fog = { enabled: false, color: [1, 1, 1, 1], nearZ: 0, farZ: Math.round((parseFloat(Z) || 500) * 1.5) };
+  return omAddLayer(layer, "Kamera");
+}
+function omAddNull() {
+  return omAddSimple("nullobj", "Objek Null");
+}
+function omAddGroup() {
+  const m = omMeta();
+  const inner = '<scene title="Grup" width="' + m.w + '" height="' + m.h + '" exportWidth="' + m.w + '" exportHeight="' + m.h + '" precompose="dynamicResolution" bgcolor="#ff000000" totalTime="' + m.total + '" fps="' + m.fps + '"></scene>';
+  return omAddSimple("embedScene", "Grup", inner);
+}
+async function omAddMediaFile(file) {
+  if (!val) return;
+  const m = omMeta(), isVid = /^video\//.test(file.type || '');
+  const uri = "am:user:" + Date.now() + ":" + Math.floor(Math.random() * 1e5);
+  const up = await omUploadFile(file);
+  const srcUrl = up ? up.url : URL.createObjectURL(file);
+  if (up) omUploads.push({
+    uri,
+    name: file.name,
+    file: up.name,
+    url: up.url
+  });
+  Et.set(file.name, {
+    name: file.name,
+    src: srcUrl
+  }), ce.push(Et.get(file.name)), ke.includes(file.name) || ke.push(file.name), Y.set(uri, file.name), val.media.push({
+    uri,
+    type: file.type || "image/png",
+    filename: file.name,
+    title: file.name,
+    duration: 0,
+    width: 0,
+    height: 0,
+    orientation: 0
+  });
+  const s = Math.round(Math.min(m.w, m.h) * 0.7);
+  const xml = '<shape id="' + omId() + '" label="' + file.name + '" startTime="0" endTime="' + m.total + '" fillType="media" fillImage="' + uri + '" mediaFillMode="' + (isVid ? "fit" : "fill") + '" s=".rect"><property name="size" type="vec2" value="' + s + ',' + s + '" />' + omTransformXml(Math.round(m.w / 2), Math.round(m.h / 2), 1) + '</shape>';
+  const layer = omParseLayer(xml);
+  if (!layer) return handle9("[EDIT] gagal membuat layer media");
+  try {
+    await apply11(file.name);
+  } catch {}
+  await omAddLayer(layer, file.name);
+}
+async function omAddAudioFile(file) {
+  if (!val) return;
+  const m = omMeta(), src = URL.createObjectURL(file);
+  const layer = omParseLayer('<audio id="' + omId() + '" label="' + file.name + '" startTime="0" endTime="' + m.total + '" src="' + src + '" />');
+  if (!layer) return handle9("[EDIT] gagal menambah audio");
+  const sc = omCurrentScene();
+  if (!Array.isArray(sc.audio)) sc.audio = [];
+  const snap = sceneSnapshot();
+  const entry = {
+    id: layer.id,
+    label: file.name,
+    src: src,
+    startTime: 0,
+    endTime: m.total,
+    inTime: 0,
+    outTime: 0
+  };
+  omCurrentLayers().push(layer), sc.audio.push(entry), sc !== val && val.audio.push({ ...entry }), pushUndo(snap), V = true;
+  handle9("[EDIT] Tambah audio \"" + file.name + "\"" + (Te.length ? " (di dalam grup)" : ""));
+  await omHandle21InContext();
+  omUploadFile(file).then(up => {
+    if (!up) return;
+    omUploads.push({
+      kind: "audio",
+      layerId: layer.id,
+      name: file.name,
+      file: up.name,
+      url: up.url
+    });
+    omWalkScenes(val, s => {
+      (s.layers || []).forEach(l => {
+        if (l.id === layer.id) l.src = up.url;
+      });
+      (s.audio || []).forEach(e => {
+        if (e.id === layer.id) e.src = up.url;
+      });
+    }), omScheduleSave();
+  }).catch(() => {});
+}
+async function omAddElementFile(file) {
+  try {
+    const text = await file.text();
+    const doc = new DOMParser().parseFromString(text, "text/xml");
+    if (!doc.documentElement || doc.querySelector("parsererror")) throw new Error("XML tidak valid");
+    const sc = handle(doc.documentElement);
+    const m = omMeta();
+    const wrapper = omParseLayer('<embedScene id="' + omId() + '" label="' + (sc.title || file.name) + '" startTime="0" endTime="' + m.total + '">' + omTransformXml(Math.round(m.w / 2), Math.round(m.h / 2), 1) + '</embedScene>');
+    if (!wrapper) throw new Error("gagal memuat elemen");
+    wrapper.scene = sc, await omAddLayer(wrapper, sc.title || file.name);
+  } catch (e) {
+    handle9("[EDIT] Elemen gagal: " + e.message);
+  }
+}
+let omAddMenu = null;
+function omCloseAddMenu() {
+  omAddMenu && (omAddMenu.remove(), omAddMenu = null);
+}
+function omPickInput(cls, accept, cb) {
+  let inp = document.querySelector("input.om-" + cls);
+  if (!inp) {
+    inp = document.createElement("input");
+    inp.type = "file", inp.accept = accept, inp.className = "om-" + cls, inp.style.display = "none";
+    document.body.appendChild(inp);
+    inp.addEventListener("change", () => {
+      const f = inp.files && inp.files[0];
+      inp.value = "";
+      if (f) cb(f);
+    });
+  }
+  inp.click();
+}
+function omOpenAddMenu(btn) {
+  omCloseAddMenu();
+  const menu = document.createElement("div");
+  menu.id = "om-add-menu";
+  menu.innerHTML = '<h4>Bentuk</h4><div class="om-shapes"></div><h4>Lapisan</h4><div class="om-items"></div>';
+  const shapes = menu.querySelector(".om-shapes");
+  Object.keys(OM_SHAPES).forEach(key => {
+    const b = document.createElement("button");
+    b.type = "button", b.className = "btn sm", b.textContent = OM_SHAPES[key];
+    b.addEventListener("click", () => {
+      omCloseAddMenu(), omAddShape(key);
+    });
+    shapes.appendChild(b);
+  });
+  const items = menu.querySelector(".om-items");
+  const item = (label, fn) => {
+    const b = document.createElement("button");
+    b.type = "button", b.className = "btn sm", b.textContent = label;
+    b.addEventListener("click", () => {
+      omCloseAddMenu(), fn();
+    });
+    items.appendChild(b);
+  };
+  item("Teks", () => omAddText());
+  item("Media (Gambar / Video)", () => omPickInput("media", "image/*,video/*", f => omAddMediaFile(f)));
+  item("Audio / Musik", () => omPickInput("audio", "audio/*", f => omAddAudioFile(f)));
+  item("Kamera", () => omAddCamera());
+  item("Null Object", () => omAddNull());
+  item("Grup Kosong", () => omAddGroup());
+  item("Elemen / Proyek (XML)", () => omPickInput("elem", ".xml,text/xml", f => omAddElementFile(f)));
+  document.body.appendChild(menu);
+  const r = btn.getBoundingClientRect();
+  menu.style.left = Math.max(4, Math.min(r.left, innerWidth - 344)) + 'px';
+  menu.style.top = Math.max(4, Math.min(r.bottom + 6, innerHeight - 430)) + 'px';
+  omAddMenu = menu;
+  setTimeout(() => {
+    const once = e => {
+      if (e && e.target && menu.contains(e.target)) return;
+      omCloseAddMenu(), window.removeEventListener("pointerdown", once);
+    };
+    window.addEventListener("pointerdown", once);
+  }, 0);
+}
+window.omInitAddButton = function omInitAddButton() {
+  const bar = document.querySelector("#pane-layer .tl-toolbar");
+  if (!bar || document.getElementById("om-add")) return;
+  const b = document.createElement("button");
+  b.id = "om-add", b.type = "button", b.className = "btn sm", b.textContent = "＋ Tambah";
+  b.addEventListener("click", e => {
+    e.stopPropagation(), omOpenAddMenu(b);
+  });
+  const count = bar.querySelector("#layers-count");
+  count && count.parentNode ? count.parentNode.insertBefore(b, count.nextSibling) : bar.insertBefore(b, bar.firstChild);
+}
+
+
+
+
+const OM_RATIOS = {
+  "16:9": [16, 9],
+  "9:16": [9, 16],
+  "4:5": [4, 5],
+  "1:1": [1, 1],
+  "4:3": [4, 3]
+};
+const OM_RES = [[1440, "1440p QHD"], [1080, "1080p FHD"], [720, "720p HD"], [540, "540p SD"], [360, "360p"], [270, "270p"], [180, "180p"]];
+const OM_FPS = [12, 15, 18, 20, 24, 25, 30, 48, 60, 90, 120];
+const OM_BGS = [["Hitam", "#ff000000", "#000000"], ["Putih", "#ffffffff", "#ffffff"], ["Abu Muda", "#ffb3b3b3", "#b3b3b3"], ["Hijau", "#ff00d62f", "#00d62f"], ["Biru", "#ff2979ff", "#2979ff"]];
+function omEven(n) {
+  n = Math.max(2, Math.round(n));
+  return n % 2 ? n + 1 : n;
+}
+function omSizeFromRatio(ratioKey, resN) {
+  const rr = OM_RATIOS[ratioKey] || [16, 9];
+  return rr[0] >= rr[1] ? {
+    w: omEven(resN * rr[0] / rr[1]),
+    h: omEven(resN)
+  } : {
+    w: omEven(resN),
+    h: omEven(resN * rr[1] / rr[0])
+  };
+}
+function omProjectXml(cfg) {
+  return '<?xml version=\'1.0\' encoding=\'UTF-8\' ?><scene title="' + cfg.name + '" width="' + cfg.w + '" height="' + cfg.h + '" exportWidth="' + cfg.w + '" exportHeight="' + cfg.h + '" precompose="dynamicResolution" bgcolor="' + cfg.bg + '" totalTime="10000" fps="' + cfg.fps + '" modifiedTime="' + Date.now() + '" amver="1028425" ffver="106" am="com.alightcreative.motion/5.0.273.1028425" amplatform="android" retime="freeze" retimeAdaptFPS="false"></scene>';
+}
+function showOmProjectDialog() {
+  if (document.getElementById("om-dialog-back")) return;
+  const st = {
+    name: "Proyek Baru",
+    ratio: "9:16",
+    res: 1080,
+    custom: false,
+    w: 1080,
+    h: 1920,
+    lock: true,
+    fps: 30,
+    bg: 0
+  };
+  const back = document.createElement("div");
+  back.id = "om-dialog-back";
+  back.innerHTML = `
+    <div class="om-dialog">
+      <h2>Buat Proyek</h2>
+      <div class="om-field"><label>Nama Proyek</label>
+        <div class="om-row"><input type="text" id="om-name" value="Proyek Baru" /><button class="iconbtn" type="button" id="om-name-x" aria-label="Bersihkan">✕</button></div>
+      </div>
+      <div class="om-field"><label>Aspect Ratio</label><div class="om-chips" id="om-aspect"></div></div>
+      <div class="om-field"><label>Resolusi</label><div class="om-chips" id="om-res"></div></div>
+      <div class="om-field" id="om-customrow" style="display:none"><label>Custom Resolution</label>
+        <div class="om-row">
+          <input type="number" id="om-w" min="16" max="7680" step="2" value="1080" aria-label="Width" />
+          <button class="iconbtn" type="button" id="om-lock" title="Kunci rasio">🔗</button>
+          <input type="number" id="om-h" min="16" max="7680" step="2" value="1920" aria-label="Height" />
+        </div>
+        <div class="om-sizeinfo">Komposisi: <b id="om-size">1080 × 1920</b></div>
+      </div>
+      <div class="om-field"><label>Frame Rate</label><div class="om-chips" id="om-fps"></div></div>
+      <div class="om-field"><label>Latar Belakang</label><div class="om-row" id="om-bg"></div></div>
+      <button class="om-btn primary" type="button" id="om-create">BUAT PROYEK</button>
+      <button class="om-btn" type="button" id="om-cancel" style="margin-top:8px;background:var(--card);color:var(--text);border:1px solid var(--line2)">Batal</button>
+    </div>`;
+  document.body.appendChild(back);
+  const $ = sel => back.querySelector(sel);
+  const render = () => {
+    back.querySelectorAll("#om-aspect .om-chip").forEach(c => c.classList.toggle("on", c.dataset.k === (st.custom ? "custom" : st.ratio)));
+    back.querySelectorAll("#om-res .om-chip").forEach(c => c.classList.toggle("on", Number(c.dataset.k) === st.res));
+    back.querySelectorAll("#om-fps .om-chip").forEach(c => c.classList.toggle("on", Number(c.dataset.k) === st.fps));
+    back.querySelectorAll("#om-bg .om-sw").forEach((c, i) => c.classList.toggle("on", i === st.bg));
+    $("#om-customrow").style.display = st.custom || st.res === 0 ? "" : "none";
+    $("#om-lock").classList.toggle("on", st.lock);
+    $("#om-w").value = st.w, $("#om-h").value = st.h;
+    const sizeEl = $("#om-size");
+    if (sizeEl) sizeEl.textContent = st.w + " × " + st.h;
+  };
+  const aspectBox = $("#om-aspect");
+  Object.keys(OM_RATIOS).forEach(k => {
+    const b = document.createElement("button");
+    b.type = "button", b.className = "om-chip", b.dataset.k = k, b.textContent = k;
+    b.addEventListener("click", () => {
+      st.ratio = k, st.custom = false;
+      if (st.res !== 0) {
+        const sz = omSizeFromRatio(k, st.res);
+        st.w = sz.w, st.h = sz.h;
+      }
+      render();
+    });
+    aspectBox.appendChild(b);
+  });
+  const customBtn = document.createElement("button");
+  customBtn.type = "button", customBtn.className = "om-chip", customBtn.dataset.k = "custom", customBtn.textContent = "✎ Custom";
+  customBtn.addEventListener("click", () => {
+    st.custom = true, st.res = 0, render();
+  });
+  aspectBox.appendChild(customBtn);
+  const resBox = $("#om-res");
+  OM_RES.forEach(([n, label]) => {
+    const b = document.createElement("button");
+    b.type = "button", b.className = "om-chip", b.dataset.k = String(n), b.textContent = label;
+    b.addEventListener("click", () => {
+      st.res = n, st.custom = false;
+      const sz = omSizeFromRatio(st.ratio, n);
+      st.w = sz.w, st.h = sz.h, render();
+    });
+    resBox.appendChild(b);
+  });
+  const resCustom = document.createElement("button");
+  resCustom.type = "button", resCustom.className = "om-chip", resCustom.dataset.k = "0", resCustom.textContent = "Custom";
+  resCustom.addEventListener("click", () => {
+    st.custom = true, st.res = 0, render();
+  });
+  resBox.appendChild(resCustom);
+  $("#om-w").addEventListener("input", e => {
+    let w = omEven(Number(e.target.value) || 0);
+    st.w = w;
+    if (st.lock) st.h = st.res === 0 && st.custom ? omEven(w * (st.h / Math.max(1, st.w || 1)) || w) : omEven(w * (OM_RATIOS[st.ratio] ? OM_RATIOS[st.ratio][1] / OM_RATIOS[st.ratio][0] : 1));
+    render();
+  });
+  $("#om-h").addEventListener("input", e => {
+    let h = omEven(Number(e.target.value) || 0);
+    st.h = h;
+    if (st.lock) st.w = omEven(h * (OM_RATIOS[st.ratio] ? OM_RATIOS[st.ratio][0] / OM_RATIOS[st.ratio][1] : (st.w / Math.max(1, st.h))));
+    render();
+  });
+  $("#om-lock").addEventListener("click", () => {
+    st.lock = !st.lock, render();
+  });
+  const fpsBox = $("#om-fps");
+  OM_FPS.forEach(f => {
+    const b = document.createElement("button");
+    b.type = "button", b.className = "om-chip", b.dataset.k = String(f), b.textContent = f + " fps";
+    b.addEventListener("click", () => {
+      st.fps = f, render();
+    });
+    fpsBox.appendChild(b);
+  });
+  const bgBox = $("#om-bg");
+  OM_BGS.forEach(([, , hex], i) => {
+    const b = document.createElement("button");
+    b.type = "button", b.className = "om-sw", b.style.background = hex, b.title = OM_BGS[i][0];
+    b.addEventListener("click", () => {
+      st.bg = i, render();
+    });
+    bgBox.appendChild(b);
+  });
+  $("#om-name-x").addEventListener("click", () => {
+    $("#om-name").value = "";
+    $("#om-name").focus();
+  });
+  const close = () => back.remove();
+  $("#om-cancel").addEventListener("click", close);
+  back.addEventListener("pointerdown", e => {
+    if (e.target === back) close();
+  });
+  $("#om-create").addEventListener("click", async () => {
+    const cfg = {
+      name: ($("#om-name").value || "").trim() || "Proyek Baru",
+      w: st.res !== 0 && !st.custom ? omSizeFromRatio(st.ratio, st.res).w : st.w,
+      h: st.res !== 0 && !st.custom ? omSizeFromRatio(st.ratio, st.res).h : st.h,
+      fps: st.fps,
+      bg: OM_BGS[st.bg][1]
+    };
+    const xml = omProjectXml(cfg);
+    const file = new File([xml], cfg.name + ".xml", {
+      type: "text/xml"
+    });
+    try {
+      omProjectId = omNewId(), omUploads = [], history.replaceState({}, "", "/proyek/" + omProjectId);
+      await window.AM.loadPreset(file);
+      close();
+      const land = document.getElementById("om-landing");
+      land && land.remove();
+      handle9("[PROYEK] Dibuat: " + cfg.name + " (" + cfg.w + "×" + cfg.h + " @ " + cfg.fps + "fps) — id " + omProjectId);
+      await omSaveProject();
+    } catch (e) {
+      handle9("[PROYEK] Gagal: " + e.message);
+    }
+  });
+  render();
+}
+function showOmLanding() {
+  const home = document.getElementById("am-home-screen");
+  const root = document.getElementById("am-mobile-root");
+  if (home) {
+    if (root) root.style.display = "none";
+    home.classList.remove("hidden");
+    if (history.replaceState && location.pathname !== "/") {
+      history.replaceState({}, "", "/");
+    }
+    return;
+  }
+}
+async function omFillRecent(wrap) {
+  try {
+    const r = await fetch("/api/projects");
+    if (!r.ok) return;
+    const data = await r.json(), list = data.projects || [];
+    if (!list.length) return;
+    const box = document.createElement("div");
+    box.className = "om-recent";
+    box.innerHTML = "<h4>Proyek terakhir (" + list.length + ")</h4>";
+    list.slice(0, 8).forEach(p => {
+      const b = document.createElement("button");
+      b.type = "button", b.className = "btn sm", b.textContent = (p.hasPassword ? "🔒 " : "") + (p.name || p.id);
+      b.addEventListener("click", () => {
+        location.href = "/proyek/" + p.id;
+      });
+      box.appendChild(b);
+    });
+    const card = wrap.querySelector(".om-card");
+    card && card.appendChild(box);
+  } catch (e) {}
+}
+// ---------- Proyek: simpan, muat, proteksi, timeline tanpa batas ----------
+var omProjectId = null,
+  omUploads = [],
+  omSaveTimer = null;
+function omNewId() {
+  const a = "ABCDEFghijklmnopqrstuvwxyz0123456789";
+  const b = new Uint8Array(22);
+  crypto.getRandomValues(b);
+  let s = "";
+  for (let i = 0; i < b.length; i++) s += a[b[i] % a.length];
+  return s;
+}
+function omEnsureId() {
+  if (omProjectId) return omProjectId;
+  omProjectId = omNewId(), history.replaceState({}, "", "/proyek/" + omProjectId);
+  handle9("[PROYEK] id baru: " + omProjectId);
+  return omProjectId;
+}
+function omPass() {
+  try {
+    return sessionStorage.getItem("om_pass_" + omProjectId) || "";
+  } catch (e) {
+    return "";
+  }
+}
+function omScheduleSave() {
+  if (!val) return;
+  clearTimeout(omSaveTimer);
+  omSaveTimer = setTimeout(omSaveProject, 3000);
+}
+async function omSaveProject() {
+  if (!val) return;
+  omEnsureId();
+  try {
+    const xml = omSerializeScene();
+    const headers = {
+      "content-type": "application/json"
+    };
+    if (omPass()) headers["x-om-pass"] = omPass();
+    const view = document.getElementById("view");
+    let thumb = null;
+    if (view && typeof view.toDataURL === "function") {
+      try {
+        thumb = view.toDataURL("image/webp", 0.5);
+      } catch (e) {}
+    }
+    const r = await fetch("/api/project/" + omProjectId, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        name: val.title || "Proyek Baru",
+        xml,
+        width: val.width || 720,
+        height: val.height || 1280,
+        fps: val.fps || 30,
+        thumb,
+        uploads: omUploads
+      })
+    });
+    if (r.ok) handle9("[SIMPAN] proyek tersimpan (" + new Date().toLocaleTimeString() + ")");
+    else handle9("[SIMPAN] gagal HTTP " + r.status);
+  } catch (e) {
+    handle9("[SIMPAN] " + e.message);
+  }
+}
+async function omUploadFile(file, customName) {
+  if (!file) return null;
+  try {
+    const id = omEnsureId();
+    const upName = customName || file.name;
+    const r = await fetch("/api/project/" + id + "/upload?name=" + encodeURIComponent(upName), {
+      method: "POST",
+      body: file
+    });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch (e) {
+    return null;
+  }
+}
+function omExtendTotal(ms) {
+  if (!val || !(ms > 0)) return;
+  const cur = val.totalTime || 0;
+  if (ms <= cur) return;
+  const nt = Math.ceil(ms / 1000) * 1000;
+  val.totalTime = nt;
+  try {
+    Ee.max = String(nt);
+  } catch (e) {}
+  try {
+    Ba && (Ba.textContent = val.title + " - " + (val.layers ? val.layers.length : 0) + " layer - " + (nt / 1000).toFixed(1) + "s");
+  } catch (e) {}
+  handle9("[PROYEK] Durasi timeline diperpanjang → " + (nt / 1000).toFixed(1) + "s");
+  omScheduleSave();
+}
+// ---- serializer: objek scene → XML AM ----
+function e2a(s) {
+  return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function omHexFrom(c) {
+  const to = v => Math.round(Math.max(0, Math.min(1, v == null ? 1 : v)) * 255).toString(16).padStart(2, "0");
+  if (typeof c === "string") return c;
+  if (!c) return "#ff000000";
+  return "#" + to(c[3]) + to(c[0]) + to(c[1]) + to(c[2]);
+}
+function omKfs(k) {
+  return (k && k.kfs || []).map(f => `<kf t="${f.t}" v="${(f.v || []).join(',')}"${f.e ? ` e="${e2a(f.e)}"` : ""}/>`).join("");
+}
+function omKeyable(tag, key) {
+  if (!key || !key.value && !(key.kfs || []).length) return "";
+  const inner = omKfs(key);
+  const val = (key.value || []).join(",");
+  return inner ? `<${tag} value="${val}">${inner}</${tag}>` : `<${tag} value="${val}" />`;
+}
+function omProp(name, dataType, data) {
+  const ch = data.channel || data;
+  let val;
+  if (dataType === "color") val = omHexFrom(ch.value);
+  else if (dataType === "bool" || dataType === "switch") val = (ch.value && ch.value[0]) ? "true" : "false";
+  else val = (ch.value || []).join(",");
+  const inner = omKfs(ch);
+  return inner ? `<property name="${e2a(name)}" type="${e2a(dataType || "float")}" value="${val}">${inner}</property>` : `<property name="${e2a(name)}" type="${e2a(dataType || "float")}" value="${val}" />`;
+}
+function omEffectXml(e) {
+  const props = (e.params || []).map(p => omProp(p.id, p.dataType, p.channel ? {
+    dataType: p.dataType,
+    channel: p.channel
+  } : p)).join("");
+  return `<effect id="${e2a(e.id)}" locallyApplied="${e.locallyApplied !== false}"${e.hidden ? ' hidden="true"' : ""}>${props}</effect>`;
+}
+function omPatchSourceXml(layer) {
+  let xml = layer.sourceXml || "";
+  if (!xml) return "";
+  xml = xml.replace(/\sstartTime="[^"]*"/, ` startTime="${layer.startTime || 0}"`);
+  xml = xml.replace(/\sendTime="[^"]*"/, ` endTime="${layer.endTime || 0}"`);
+  if (layer.label != null && /\slabel="[^"]*"/.test(xml)) xml = xml.replace(/\slabel="[^"]*"/, ` label="${e2a(layer.label)}"`);
+  if (layer.fillType) {
+    if (/\sfillType="[^"]*"/.test(xml)) xml = xml.replace(/\sfillType="[^"]*"/, ` fillType="${e2a(layer.fillType)}"`);
+  }
+  if (layer.fillImage) {
+    if (/\sfillImage="[^"]*"/.test(xml)) xml = xml.replace(/\sfillImage="[^"]*"/, ` fillImage="${e2a(layer.fillImage)}"`);
+    else xml = xml.replace(/^<([a-zA-Z]+)/, `<$1 fillImage="${e2a(layer.fillImage)}"`);
+  }
+  if (layer.fillVideo) {
+    if (/\sfillVideo="[^"]*"/.test(xml)) xml = xml.replace(/\sfillVideo="[^"]*"/, ` fillVideo="${e2a(layer.fillVideo)}"`);
+    else xml = xml.replace(/^<([a-zA-Z]+)/, `<$1 fillVideo="${e2a(layer.fillVideo)}"`);
+  }
+  if (layer.hidden) xml = /\shidden=/.test(xml) ? xml.replace(/\shidden="[^"]*"/, ' hidden="true"') : xml.replace(/^<([a-zA-Z]+)/, `<$1 hidden="true"`);
+  if (layer.parentId) {
+    if (/\sparent="[^"]*"/.test(xml)) xml = xml.replace(/\sparent="[^"]*"/, ` parent="${e2a(layer.parentId)}"`);
+    else xml = xml.replace(/^<([a-zA-Z]+)/, `<$1 parent="${e2a(layer.parentId)}"`);
+  } else {
+    xml = xml.replace(/\sparent="[^"]*"/, '');
+  }
+  return xml;
+}
+function omTransformXmlObj(tr) {
+  if (!tr) return "";
+  let out = "<transform>";
+  out += omKeyable("location", tr.location), out += omKeyable("scale", tr.scale), out += omKeyable("rotation", tr.rotation), out += omKeyable("opacity", tr.opacity);
+  if (tr.pivot && (tr.pivot.value && (tr.pivot.value[0] || tr.pivot.value[1]) || (tr.pivot.kfs || []).length)) out += omKeyable("pivot", tr.pivot);
+  if (tr.skew && (tr.skew.value && (tr.skew.value[0] || tr.skew.value[1]) || (tr.skew.kfs || []).length)) out += omKeyable("skew", tr.skew);
+  return out + "</transform>";
+}
+function omLayerXml(layer) {
+  if (!layer) return "";
+  if ((layer.path || layer.pathStroke || (layer.strokes && layer.strokes.length)) && layer.sourceXml) return omPatchSourceXml(layer);
+  const tag = layer.tag || "shape";
+  let attrs = ` id="${e2a(layer.id || omId())}" label="${e2a(layer.label || '')}" startTime="${layer.startTime || 0}" endTime="${layer.endTime || 0}"`;
+  if (layer.inTime) attrs += ` inTime="${layer.inTime}"`;
+  if (layer.outTime) attrs += ` outTime="${layer.outTime}"`;
+  if (layer.hidden) attrs += ' hidden="true"';
+  if (layer.blendMode && layer.blendMode !== "normal") attrs += ` blending="${e2a(layer.blendMode)}"`;
+  if (layer.speed && layer.speed !== 1) attrs += ` speed="${layer.speed}"`;
+  if (layer.parentId) attrs += ` parent="${e2a(layer.parentId)}"`;
+  if (tag === "shape") {
+    if (layer.shapeType) attrs += ` s="${e2a(layer.shapeType)}"`;
+    if (layer.fillType) attrs += ` fillType="${e2a(layer.fillType)}"`;
+    if (layer.mediaFillMode && layer.fillType === "media") attrs += ` mediaFillMode="${e2a(layer.mediaFillMode)}"`;
+    if (layer.fillType === "media") {
+      if (layer.fillImage) attrs += ` fillImage="${e2a(layer.fillImage)}"`;
+      if (layer.fillVideo) attrs += ` fillVideo="${e2a(layer.fillVideo)}"`;
+    }
+  }
+  if (tag === "text") {
+    if (layer.font) attrs += ` font="${e2a(layer.font)}"`;
+    if (layer.fontSize) attrs += ` size="${layer.fontSize}"`;
+    if (layer.align && layer.align !== "center") attrs += ` align="${e2a(layer.align)}"`;
+    if (layer.wrapWidth) attrs += ` wrapWidth="${layer.wrapWidth}"`;
+    if (layer.letterSpacing) attrs += ` letterSpacing="${layer.letterSpacing}"`;
+    if (layer.lineSpacing && layer.lineSpacing !== 1) attrs += ` lineSpacing="${layer.lineSpacing}"`;
+  }
+  if (tag === "audio" && layer.src) attrs += ` src="${e2a(layer.src)}"`;
+  if (tag === "camera") {
+    attrs += ` type="${e2a(layer.cameraType || 'perspective')}"`;
+  }
+  let kids = omTransformXmlObj(layer.transform);
+  if ((tag === "shape" || tag === "text") && layer.fillType !== "media" && layer.fillColor) kids += `<fillColor value="${omHexFrom(layer.fillColor)}" />`;
+  if (tag === "shape" && layer.fillType === "gradient" && layer.gradient) {
+    const g = layer.gradient;
+    const sStr = (g.start || [0, 0]).join(",");
+    const eStr = (g.end || [1, 0]).join(",");
+    kids += `<gradient type="${e2a(g.type || 'linear')}" start="${sStr}" end="${eStr}" startColor="${omHexFrom(g.startColor)}" endColor="${omHexFrom(g.endColor)}">`;
+    if (g.stops && g.stops.length) {
+      for (const st of g.stops) {
+        kids += `<stop t="${st.t}" color="${omHexFrom(st.color)}" />`;
+      }
+    }
+    kids += `</gradient>`;
+  }
+  if (tag === "shape" && layer.size) kids += omProp("size", "vec2", {
+    dataType: "vec2",
+    channel: layer.size
+  });
+  if (layer.shapeProps) {
+    for (const [name, data] of Object.entries(layer.shapeProps)) {
+      if (name === "size" || name === "blendMode" || name === "blending" || !data) continue;
+      const dt = data.dataType || (name === "cornerRadius" || name === "startAngle" || name === "endAngle" ? "float" : "float");
+      kids += omProp(name, dt, data);
+    }
+  }
+  if (tag === "text" || layer.textContent) kids += `<content>${e2a(layer.textContent || '')}</content>`;
+  if (layer.gain && (layer.gain.value && layer.gain.value[0] !== 1 || (layer.gain.kfs || []).length)) kids += omKeyable("gain", layer.gain);
+  if (tag === "camera") {
+    if (layer.fov > 0) kids += `<fov value="${layer.fov}" />`;
+    if (layer.focusBlur) {
+      const fb = layer.focusBlur;
+      kids += `<focus-blur enabled="${fb.enabled ? 'true' : 'false'}"><distance value="${fb.distance != null ? fb.distance : 500}" /><depth-of-field value="${fb.depthOfField != null ? fb.depthOfField : 100}" /><strength value="${fb.strength != null ? fb.strength : 0.5}" /></focus-blur>`;
+    }
+    if (layer.fog) {
+      const fg = layer.fog;
+      const cHex = fg.color ? omHexFrom(fg.color) : "#ffffffff";
+      kids += `<fog enabled="${fg.enabled ? 'true' : 'false'}"><color value="${cHex}" /><near-z value="${fg.nearZ != null ? fg.nearZ : 0}" /><far-z value="${fg.farZ != null ? fg.farZ : 500}" /></fog>`;
+    }
+  } else if (layer.fov > 0) kids += `<fov value="${layer.fov}" />`;
+  if (layer.border) kids += `<border direction="${e2a(layer.border.direction || 'outside')}"><color value="${omHexFrom(layer.border.color)}"/><size value="${layer.border.size || 0}" /></border>`;
+  if (layer.shadow) kids += `<shadow ${layer.shadow.enabled === false ? 'enabled="false"' : ""} direction="${e2a(layer.shadow.direction || 'outside')}"><color value="${omHexFrom(layer.shadow.color)}"/><size value="${layer.shadow.size || 0}"/><offset value="${(layer.shadow.offset || [0, 0]).join(",")}" /></shadow>`;
+  if (layer.path && layer.path.commands) {
+    const dStr = layer.path.commands.map(c => c.join(' ')).join(' ');
+    kids += `<path d="${e2a(dStr)}" />`;
+  }
+  if (layer.pathStroke) {
+    kids += `<path-stroke enabled="${layer.pathStroke.enabled !== false}" direction="${e2a(layer.pathStroke.direction || 'centered')}" cap="${e2a(layer.pathStroke.cap || 'round')}"><color value="${omHexFrom(layer.pathStroke.color)}"/><size value="${layer.pathStroke.size || 0}"/></path-stroke>`;
+  }
+  if (layer.strokes && layer.strokes.length) {
+    for (const s of layer.strokes) {
+      const pts = (s.points || []).map(p => `${p[0].toFixed(2)},${p[1].toFixed(2)},${(p[2] != null ? p[2] : 1).toFixed(2)}`).join(';');
+      kids += `<stroke color="${omHexFrom(s.color)}" width="${s.width || 0}" type="${e2a(s.type || 'pen')}" points="${pts}" />`;
+    }
+  }
+  (layer.effects || []).forEach(e => {
+    kids += omEffectXml(e);
+  });
+  if (layer.scene) kids += omSceneXmlInner(layer.scene);
+  (layer.children || []).forEach(c => {
+    kids += omLayerXml(c);
+  });
+  const voidTags = ["nullobj", "camera", "audio"];
+  if (!kids) return `<${tag}${attrs} />`;
+  return `<${tag}${attrs}>${kids}</${tag}>`;
+}
+function omSceneXmlInner(sc) {
+  const bg = omHexFrom(sc.bgcolor);
+  let x = `<scene title="${e2a(sc.title || '')}" width="${sc.width || 1080}" height="${sc.height || 1920}" exportWidth="${sc.exportWidth || sc.width || 1080}" exportHeight="${sc.exportHeight || sc.height || 1920}"${sc.precompose ? ` precompose="${e2a(sc.precompose)}"` : ""} bgcolor="${bg}" totalTime="${sc.totalTime || 10000}" fps="${sc.fps || 30}" modifiedTime="${Date.now()}" amver="1028425" ffver="106" am="com.alightcreative.motion/5.0.273.1028425" amplatform="android" retime="freeze" retimeAdaptFPS="false">`;
+  const mediaMap = new Map();
+  (sc.media || []).forEach(m => m.uri && mediaMap.set(m.uri, m));
+  (typeof omUploads !== "undefined" && omUploads || []).forEach(u => {
+    if (u.uri && !mediaMap.has(u.uri)) {
+      mediaMap.set(u.uri, { uri: u.uri, filename: u.name, title: u.name, type: "image/png" });
+    }
+  });
+  for (const m of mediaMap.values()) {
+    x += `<media uri="${e2a(m.uri)}" type="${e2a(m.type || '')}" filename="${e2a(m.filename || '')}" title="${e2a(m.title || '')}" duration="${m.duration || 0}" width="${m.width || 0}" height="${m.height || 0}" orientation="${m.orientation || 0}" />`;
+  }
+  (sc.bookmarks || []).forEach(t => {
+    x += `<bookmark t="${t}" />`;
+  });
+  (sc.layers || []).forEach(l => {
+    x += omLayerXml(l);
+  });
+  return x + "</scene>";
+}
+function omSerializeScene() {
+  return '<?xml version=\'1.0\' encoding=\'UTF-8\' ?>' + omSceneXmlInner(val);
+}
+function omRestoreMediaUploads(list) {
+  (list || []).forEach(u => {
+    if (u.uri && u.name && u.url) {
+      Et.set(u.name, {
+        name: u.name,
+        src: u.url
+      }), ce.push(Et.get(u.name)), ke.includes(u.name) || ke.push(u.name), Y.set(u.uri, u.name);
+    }
+  });
+}
+function omRewriteAudioSrcs(list) {
+  const aud = (list || []).filter(u => u.kind === "audio" && u.url);
+  if (!aud.length || !val) return false;
+  omWalkScenes(val, sc => {
+    (sc.layers || []).forEach(l => {
+      const u = aud.find(x => x.layerId === l.id);
+      u && (l.src = u.url);
+    });
+    (sc.audio || []).forEach(e => {
+      const u = aud.find(x => x.layerId === e.id);
+      u && (e.src = u.url);
+    });
+  });
+  return true;
+}
+async function omLoadProjectScene(meta) {
+  const id = omProjectId, pass = omPass();
+  try {
+    const headers = {};
+    if (pass) headers["x-om-pass"] = pass;
+    const r = await fetch("/api/project/" + id + "/scene", {
+      headers
+    });
+    if (r.status === 401) {
+      sessionStorage.removeItem("om_pass_" + id);
+      showOmPassword(meta, () => omLoadProjectScene(meta));
+      return;
+    }
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const xml = await r.text();
+    const uploads = meta.uploads || [];
+    omUploads = uploads;
+    await window.AM.loadPreset(new File([xml], (meta.name || "proyek") + ".xml", {
+      type: "text/xml"
+    }));
+    omRestoreMediaUploads(uploads);
+    if (val2) {
+      val2.setImages(get10());
+      V = true;
+      val2.renderAt(H);
+    }
+    if (val && meta && meta.name) {
+      val.title = meta.name;
+    }
+    const topTitle = document.getElementById("am-project-title");
+    if (topTitle) topTitle.value = (val && val.title) || meta.name || id;
+    if (omRewriteAudioSrcs(uploads)) await handle21();
+    handle9("[PROYEK] terbuka: " + (meta.name || id));
+    const land = document.getElementById("om-landing");
+    land && land.remove();
+    const passBack = document.getElementById("om-pass-back");
+    passBack && passBack.remove();
+  } catch (e) {
+    handle9("[PROYEK] gagal memuat: " + e.message);
+  }
+}
+function showOmPassword(meta, onOk) {
+  if (document.getElementById("om-pass-back")) return;
+  const back = document.createElement("div");
+  back.id = "om-pass-back";
+  back.style.cssText = "position:fixed;inset:0;z-index:100002;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;padding:16px";
+  back.innerHTML = `<div class="om-dialog" style="max-width:360px"><h2>Proyek terkunci</h2><div class="om-field"><label>Password untuk "${e2a(meta && meta.name || omProjectId)}"</label><div class="om-row"><input type="password" id="om-pass-input" placeholder="Password" /></div></div><button class="om-btn primary" type="button" id="om-pass-ok">Buka</button></div>`;
+  document.body.appendChild(back);
+  const input = back.querySelector("#om-pass-input");
+  const submit = async () => {
+    const v = input.value;
+    if (!v) return;
+    try {
+      const r = await fetch("/api/project/" + omProjectId + "/unlock", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          password: v
+        })
+      });
+      if (r.ok) {
+        sessionStorage.setItem("om_pass_" + omProjectId, v);
+        onOk();
+      } else {
+        input.value = "", input.placeholder = "Password salah";
+      }
+    } catch (e) {
+      handle9("[AKUN] " + e.message);
+    }
+  };
+  back.querySelector("#om-pass-ok").addEventListener("click", submit);
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter") submit();
+  });
+  setTimeout(() => input.focus(), 60);
+}
+async function omOpenProject(id) {
+  omProjectId = id;
+  let meta;
+  try {
+    const r = await fetch("/api/project/" + id);
+    if (r.status === 404) {
+      handle9("[PROYEK] tidak ditemukan: " + id);
+      showOmLanding();
+      return;
+    }
+    meta = await r.json();
+  } catch (e) {
+    handle9("[PROYEK] server tidak menjawab: " + e.message);
+    showOmLanding();
+    return;
+  }
+  if (meta.hasPassword && !sessionStorage.getItem("om_pass_" + id)) {
+    showOmPassword(meta, () => omLoadProjectScene(meta));
+    return;
+  }
+  await omLoadProjectScene(meta);
+}
+// init add button later
+// ---------- Panel proyek di Setelan ----------
+function omFillProjectSettings() {
+  if (!val) return;
+  const g = id => document.getElementById(id);
+  if (!g("om-pname")) return;
+  g("om-pname").value = val.title || "";
+  g("om-pw").value = Math.round(val.width || 0);
+  g("om-ph").value = Math.round(val.height || 0);
+  g("om-pfps").value = String(Math.round(val.fps || 30));
+  g("om-pdur").value = ((val.totalTime || 0) / 1000).toFixed(1);
+  const hex = omHexFrom(val.bgcolor).toLowerCase();
+  g("om-pbg").querySelectorAll(".om-sw").forEach(b => b.classList.toggle("on", String(b.dataset.hex).toLowerCase() === hex));
+  const hexIn = g("om-pbghex");
+  hexIn && (hexIn.value = hex);
+  const pid = g("om-projid");
+  pid && (pid.textContent = omProjectId || "proyek lokal");
+}
+function omApplyProjectSettings() {
+  if (!val) return;
+  const g = id => document.getElementById(id);
+  const snap = sceneSnapshot();
+  const w = Math.max(16, Math.round(Number(g("om-pw").value) || val.width));
+  const h = Math.max(16, Math.round(Number(g("om-ph").value) || val.height));
+  const fps = Math.max(1, Math.min(120, Math.round(Number(g("om-pfps").value) || val.fps)));
+  const dur = Math.max(1, Number(g("om-pdur").value) || 10);
+  const hex = String(g("om-pbghex").value || "").trim();
+  const name = String(g("om-pname").value || "").trim() || val.title;
+  val.title = name, val.width = w, val.height = h, val.exportWidth = w, val.exportHeight = h, val.fps = fps, val.totalTime = Math.round(dur * 1000);
+  if (/^#[0-9a-f]{8}$/i.test(hex)) val.bgcolor = parseHexColor(hex);
+  pushUndo(snap);
+  handle9("[PROYEK] Setelan: " + name + " · " + w + "×" + h + " @ " + fps + "fps · " + dur + "s");
+  try {
+    handle21();
+  } catch (e) {}
+}
+function omInitProjectSettingsCard() {
+  const body = document.querySelector("#settingsDlg .dlg-body");
+  if (!body || document.getElementById("om-projcard")) return;
+  const fpsOpts = [12, 15, 18, 20, 24, 25, 30, 48, 60, 90, 120].map(f => '<option value="' + f + '">' + f + ' fps</option>').join("");
+  const bgs = OM_BGS.map(([n, hexA, hex]) => '<button type="button" class="om-sw" data-hex="' + hexA + '" style="background:' + hex + '" title="' + n + '"></button>').join("");
+  const card = document.createElement("div");
+  card.className = "card", card.id = "om-projcard";
+  card.innerHTML = '<div class="card-head"><h2>Proyek</h2><span class="hint" id="om-projid"></span></div>' + '<label class="field">Nama proyek <input type="text" id="om-pname" /></label>' + '<div class="row"><label class="field">Lebar <input type="number" id="om-pw" min="16" max="7680" step="2" /></label><label class="field">Tinggi <input type="number" id="om-ph" min="16" max="7680" step="2" /></label></div>' + '<label class="field">Frame rate <select id="om-pfps">' + fpsOpts + '</select></label>' + '<label class="field">Durasi (detik) <input type="number" id="om-pdur" min="1" max="3600" step="0.1" /></label>' + '<div class="field">Latar belakang<div class="row" id="om-pbg">' + bgs + '</div></div>' + '<label class="field">Warna latar (AARRGGBB) <input type="text" id="om-pbghex" /></label>' + '<button class="btn primary" type="button" id="om-papply">Terapkan setelan proyek</button>';
+  body.insertBefore(card, body.firstChild);
+  card.querySelectorAll(".om-sw").forEach(b => b.addEventListener("click", () => {
+    card.querySelectorAll(".om-sw").forEach(x => x.classList.remove("on"));
+    b.classList.add("on");
+    const hexIn = card.querySelector("#om-pbghex");
+    hexIn && (hexIn.value = b.dataset.hex);
+  }));
+  card.querySelector("#om-papply").addEventListener("click", () => omApplyProjectSettings());
+  ["openSettings", "sSettingsBtn"].forEach(id => {
+    const btn = document.getElementById(id);
+    btn && btn.addEventListener("click", () => setTimeout(omFillProjectSettings, 60));
+  });
+}
+omInitProjectSettingsCard();
+// ---------- Panel properti layer (gaya AM: kanan, kontekstual) ----------
+var omPropsLayerId = null,
+  omPropsSnap = null;
+var OM_BLENDS = [
+  ["Normal", ["normal"]],
+  ["Darken", ["multiply", "darken", "color-burn", "linear-burn", "darker-color"]],
+  ["Lighten", ["screen", "lighten", "color-dodge", "linear-dodge", "lighter-color", "add", "plus"]],
+  ["Difference", ["difference", "diff", "exclusion", "subtract", "divide"]],
+  ["Contrast", ["overlay", "soft-overlay", "soft-light", "hard-light", "vivid-light", "pin-light", "linear-light"]],
+  ["Color", ["hue", "saturation", "color", "luminance"]],
+  ["Mask", ["mask", "clipping-mask", "mask-fill", "mask-exclude", "exclude", "dst-in", "dst-out"]]
+];
+var OM_PALETTE = ["#ffff00", "#ff9900", "#ff0000", "#ff00cc", "#9900ff", "#0066ff", "#00ccff", "#00cc66", "#ffffff", "#999999", "#000000"];
+function omResolveLayer(id) {
+  let f = null;
+  if (!val) return null;
+  omWalkScenes(val, sc => {
+    (sc.layers || []).forEach(l => {
+      if (!f && String(l.id) === String(id)) f = l;
+    });
+  });
+  return f;
+}
+function omPropsBegin() {
+  if (!omPropsSnap) omPropsSnap = sceneSnapshot();
+}
+function omPropsCommit() {
+  if (omPropsSnap) pushUndo(omPropsSnap), omPropsSnap = null;
+  V = true;
+  try {
+    val2 && val2.renderAt(H);
+  } catch (e) {}
+  try {
+    omKfRefresh();
+  } catch (e) {}
+}
+function omSetKeyable(prop, v) {
+  if (!prop) return;
+  prop.kfs = prop.kfs || [];
+  const arr = Array.isArray(v) ? v : [v];
+  prop.value = arr;
+  if (prop.kfs.length) {
+    const t = H / 1000;
+    const i = prop.kfs.findIndex(k => Math.abs(Number(k.t) - t) < 0.001);
+    if (i >= 0) prop.kfs[i].v = arr;
+    else prop.kfs.push({
+      t,
+      v: arr,
+      e: null,
+      easing: null
+    });
+    prop.kfs.sort((x, y) => x.t - y.t);
+  }
+}
+function omPropsRefresh() {
+  const panel = document.getElementById("om-props");
+  if (!panel) return;
+  const layer = omPropsLayerId != null ? omResolveLayer(omPropsLayerId) : null;
+  if (!layer) {
+    panel.classList.remove("on");
+    const bar0 = document.getElementById("om-elembar");
+    bar0 && bar0.classList.remove("on");
+    try {
+      omBarUpdate(null);
+    } catch (e) {}
+    return;
+  }
+  panel.classList.add("on");
+  const bar0 = document.getElementById("om-elembar");
+  bar0 && bar0.classList.add("on");
+  try {
+    omBarUpdate(layer);
+  } catch (e) {}
+  const q = sel => panel.querySelector(sel);
+  const xf = layer.transform || {};
+  const loc = (xf.location && xf.location.value) || [0, 0];
+  const rot = (xf.rotation && xf.rotation.value) || [0];
+  const sc = (xf.scale && xf.scale.value) || [1, 1];
+  q("#om-propX").value = Math.round(Number(loc[0]) || 0);
+  q("#om-propY").value = Math.round(Number(loc[1]) || 0);
+  q("#om-propR").value = (Number(rot[0]) || 0).toFixed(1);
+  q("#om-propSX").value = (Number(sc[0]) * 100).toFixed(1);
+  q("#om-propSY").value = (Number(sc[1]) * 100).toFixed(1);
+  try { omKfRefresh(); } catch (e) {}
+  const bd = layer.border;
+  q("#om-propBord").checked = !!(bd && bd.size > 0);
+  q("#om-propBordRow").style.display = q("#om-propBord").checked ? "" : "none";
+  if (bd) {
+    q("#om-propBordSize").value = bd.size || 0;
+    q("#om-propBordDir").value = bd.direction || "outside";
+    const c = omHexFrom(bd.color);
+    q("#om-propBordColor").value = /^#[0-9a-f]{9}$/i.test(c) ? "#" + c.slice(3) : c;
+  }
+  const sh = layer.shadow;
+  q("#om-propShad").checked = !!(sh && sh.enabled !== false && (sh.size > 0 || (sh.offset && (sh.offset[0] || sh.offset[1]))));
+  q("#om-propShadRow").style.display = q("#om-propShad").checked ? "" : "none";
+  if (sh) {
+    q("#om-propShadSize").value = sh.size || 0;
+    q("#om-propShadX").value = (sh.offset || [0, 0])[0];
+    q("#om-propShadY").value = (sh.offset || [0, 0])[1];
+    const c2 = omHexFrom(sh.color);
+    q("#om-propShadColor").value = /^#[0-9a-f]{9}$/i.test(c2) ? "#" + c2.slice(3) : c2;
+  }
+  panel.querySelector("#om-pname2").textContent = layer.label || layer.id || "Layer";
+  panel.querySelector("#om-ptype2").textContent = (layer.tag || "") + (layer.shapeType ? " · " + layer.shapeType : "");
+  const opv = layer.transform && layer.transform.opacity && layer.transform.opacity.value ? Number(layer.transform.opacity.value[0]) : 1;
+  panel.querySelector("#om-propOp").value = Math.round(opv * 100);
+  panel.querySelector("#om-propOpv").textContent = Math.round(opv * 100) + "%";
+  panel.querySelector("#om-propBlend").value = process5(layer.blendMode);
+  const noFill = layer.tag === "audio" || layer.fillType === "media";
+  panel.querySelector("#om-propFillRow").style.display = noFill ? "none" : "";
+  if (!noFill) {
+    const hex = omHexFrom(layer.fillColor);
+    panel.querySelector("#om-propFill").value = hex;
+    const ci = panel.querySelector("#om-propColor");
+    if (/^#[0-9a-f]{8}$/i.test(hex)) ci.value = hex.slice(0, 3) === "#ff" || hex.length === 9 ? "#" + hex.slice(3) : hex;
+  }
+}
+function omInitPropsPanel() {
+  if (document.getElementById("om-props")) return;
+  const st = document.createElement("style");
+  st.textContent = "#om-props{position:fixed;top:56px;right:8px;width:268px;max-height:calc(100vh - 200px);overflow:auto;background:var(--panel);border:1px solid var(--line2);border-radius:14px;z-index:9998;display:none;box-shadow:0 10px 30px rgba(0,0,0,.45);padding:10px 12px 14px}#om-props.on{display:block}.om-props-head{display:flex;gap:6px;align-items:center;justify-content:space-between}.om-props-head strong{font-size:.9rem}.om-props-head span{font-size:.64rem;color:var(--muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.om-props-sec{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:12px 0 6px;border-top:1px solid var(--line2);padding-top:10px}.om-props-sec:first-of-type{border-top:0;padding-top:0;margin-top:4px}.om-props-row{display:flex;gap:6px;align-items:center}.om-props-row input[type=text]{flex:1;min-width:0;background:var(--card);border:1px solid var(--line2);border-radius:8px;color:var(--text);padding:7px 8px;font-size:.8rem}#om-propColor{width:36px;height:32px;padding:0;border:1px solid var(--line2);border-radius:8px;background:var(--card);cursor:pointer}#om-propBlend,#om-propOp{width:100%}#om-propSw{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}#om-propSw i{width:20px;height:20px;border-radius:5px;cursor:pointer;border:1px solid rgba(255,255,255,.3);display:block}#om-propOpv{font-size:.78rem;min-width:38px;text-align:right}";
+  document.head.appendChild(st);
+  const panel = document.createElement("div");
+  panel.id = "om-props";
+  const blendOpts = OM_BLENDS.map(([g, list]) => '<optgroup label="' + g + '">' + list.map(v => '<option value="' + v + '">' + v + "</option>").join("") + "</optgroup>").join("");
+  panel.innerHTML = '<div class="om-props-head"><strong id="om-pname2">-</strong><span id="om-ptype2"></span><button class="iconbtn" type="button" id="om-pclose" style="width:28px;height:28px">✕</button></div>' + '<div class="om-props-sec" id="om-sec-blend">Blending &amp; Opacity</div>' + '<label class="field om-props-row"><span style="width:56px">Opacity</span><input type="range" id="om-propOp" min="0" max="100" step="1" value="100"><span id="om-propOpv">100%</span></label>' + '<label class="field">Blend mode<select id="om-propBlend">' + blendOpts + '</select></label>' + '<div class="om-props-sec" id="om-sec-fill">Color &amp; Fill</div>' + '<div id="om-propFillRow"><div class="om-props-row"><input type="color" id="om-propColor" title="Pilih warna"><input type="text" id="om-propFill" placeholder="#ff000000" spellcheck="false"></div><div id="om-propSw"></div></div>' + '<div class="om-props-sec" id="om-sec-xf">Move &amp; Transform</div>' + '<div class="om-props-row"><label class="field" style="flex:1">X<input type="number" id="om-propX" step="1"></label><label class="field" style="flex:1">Y<input type="number" id="om-propY" step="1"></label></div>' + '<div class="om-props-row"><label class="field" style="flex:1">Rot °<input type="number" id="om-propR" step="0.1"></label><label class="field" style="flex:1">Skala X %<input type="number" id="om-propSX" step="0.1"></label></div>' + '<div class="om-props-row"><label class="field" style="flex:1">Skala Y %<input type="number" id="om-propSY" step="0.1"></label><button class="iconbtn on" type="button" id="om-propLink" title="Kunci skala X &amp; Y biar selaras" style="width:44px;height:34px">🔗</button></div>' + '<div class="om-props-sec" id="om-sec-bord">Border &amp; Shadow</div>' + '<label class="check"><input type="checkbox" id="om-propBord"><span>Border (stroke)</span></label>' + '<div class="om-props-row" id="om-propBordRow"><label class="field" style="flex:1">Lebar<input type="number" id="om-propBordSize" min="0" step="1"></label><input type="color" id="om-propBordColor" title="Warna border"><select id="om-propBordDir" style="width:92px"><option value="outside">Luar</option><option value="center">Tengah</option><option value="inside">Dalam</option></select></div>' + '<label class="check"><input type="checkbox" id="om-propShad"><span>Bayangan</span></label>' + '<div class="om-props-row" id="om-propShadRow"><label class="field" style="flex:1">Size<input type="number" id="om-propShadSize" min="0" step="1"></label><input type="color" id="om-propShadColor" title="Warna bayangan"><label class="field" style="flex:1">X<input type="number" id="om-propShadX" step="1"></label><label class="field" style="flex:1">Y<input type="number" id="om-propShadY" step="1"></label></div>';
+  document.body.appendChild(panel);
+  const sw = panel.querySelector("#om-propSw");
+  OM_PALETTE.forEach(c => {
+    const i = document.createElement("i");
+    i.style.background = c;
+    i.title = c;
+    i.addEventListener("click", () => {
+      const l = omResolveLayer(omPropsLayerId);
+      if (!l) return;
+      omPropsBegin(), l.fillColor = parseHexColor("ff" + c.slice(1)), panel.querySelector("#om-propFill").value = "#ff" + c.slice(1), panel.querySelector("#om-propColor").value = c, omPropsCommit();
+    });
+    sw.appendChild(i);
+  });
+  panel.querySelector("#om-pclose").addEventListener("click", () => {
+    omPropsLayerId = null, panel.classList.remove("on");
+  });
+  const op = panel.querySelector("#om-propOp");
+  op.addEventListener("input", () => {
+    const l = omResolveLayer(omPropsLayerId);
+    if (!l || !l.transform) return;
+    omActProp = "op", omPropsBegin(), l.transform.opacity = l.transform.opacity || {
+      value: [1],
+      kfs: []
+    }, omSetKeyable(l.transform.opacity, Number(op.value) / 100), panel.querySelector("#om-propOpv").textContent = op.value + "%", V = true;
+    try {
+      val2 && val2.renderAt(H);
+    } catch (e) {}
+  });
+  op.addEventListener("change", () => omPropsCommit());
+  panel.querySelector("#om-propBlend").addEventListener("change", e => {
+    const l = omResolveLayer(omPropsLayerId);
+    if (!l) return;
+    omPropsBegin(), l.blendMode = e.target.value, omPropsCommit();
+  });
+  const fillText = panel.querySelector("#om-propFill");
+  fillText.addEventListener("change", () => {
+    const v = String(fillText.value || "").trim();
+    if (!/^#?[0-9a-f]{6,8}$/i.test(v)) return omPropsRefresh();
+    const hex = (v[0] === "#" ? v.slice(1) : v);
+    const full = hex.length === 6 ? "ff" + hex : hex.length === 7 ? "ff" + hex.slice(1) : hex;
+    const l = omResolveLayer(omPropsLayerId);
+    if (!l) return;
+    omPropsBegin(), l.fillColor = parseHexColor("#" + full), omPropsCommit();
+  });
+  panel.querySelector("#om-propColor").addEventListener("input", e => {
+    const l = omResolveLayer(omPropsLayerId);
+    if (!l) return;
+    omPropsBegin(), l.fillColor = parseHexColor("ff" + String(e.target.value).slice(1)), V = true;
+    try {
+      val2 && val2.renderAt(H);
+    } catch (e) {}
+    fillText.value = "#ff" + String(e.target.value).slice(1);
+  });
+  panel.querySelector("#om-propColor").addEventListener("change", () => omPropsCommit());
+  // ---- Move & Transform (numerik, gaya desktop) ----
+  let xfLink = true;
+  const num = sel => panel.querySelector(sel);
+  const readT = () => {
+    const l = omResolveLayer(omPropsLayerId);
+    return l && l.transform ? l.transform : null;
+  };
+  num("#om-propLink").addEventListener("click", () => {
+    xfLink = !xfLink, num("#om-propLink").classList.toggle("on", xfLink);
+  });
+  num("#om-propX").addEventListener("change", () => {
+    omActProp = "loc"; const l9 = omResolveLayer(omPropsLayerId); if (l9) l9.userTouched = true; const t = readT();
+    if (!t) return;
+    omPropsBegin(), omSetKeyable(t.location, [Number(num("#om-propX").value) || 0, Number(num("#om-propY").value) || 0, (t.location.value && t.location.value[2]) || 0]), omPropsCommit();
+  });
+  num("#om-propY").addEventListener("change", () => {
+    omActProp = "loc"; const l9 = omResolveLayer(omPropsLayerId); if (l9) l9.userTouched = true; const t = readT();
+    if (!t) return;
+    omPropsBegin(), omSetKeyable(t.location, [Number(num("#om-propX").value) || 0, Number(num("#om-propY").value) || 0, (t.location.value && t.location.value[2]) || 0]), omPropsCommit();
+  });
+  num("#om-propR").addEventListener("change", () => {
+    omActProp = "rot"; const l9 = omResolveLayer(omPropsLayerId); if (l9) l9.userTouched = true; const t = readT();
+    if (!t) return;
+    omPropsBegin(), omSetKeyable(t.rotation, Number(num("#om-propR").value) || 0), omPropsCommit();
+  });
+  num("#om-propSX").addEventListener("change", () => {
+    omActProp = "sc"; const l9 = omResolveLayer(omPropsLayerId); if (l9) l9.userTouched = true; const t = readT();
+    if (!t) return;
+    const v = (Number(num("#om-propSX").value) || 0) / 100;
+    xfLink && (num("#om-propSY").value = num("#om-propSX").value);
+    omPropsBegin(), omSetKeyable(t.scale, [v, xfLink ? v : (Number(num("#om-propSY").value) || 0) / 100]), omPropsCommit();
+  });
+  num("#om-propSY").addEventListener("change", () => {
+    omActProp = "sc"; const l9 = omResolveLayer(omPropsLayerId); if (l9) l9.userTouched = true; const t = readT();
+    if (!t) return;
+    const v = (Number(num("#om-propSY").value) || 0) / 100;
+    xfLink && (num("#om-propSX").value = num("#om-propSY").value);
+    omPropsBegin(), omSetKeyable(t.scale, [xfLink ? v : (Number(num("#om-propSX").value) || 0) / 100, v]), omPropsCommit();
+  });
+  // ---- Border & Shadow ----
+  const bordChk = panel.querySelector("#om-propBord");
+  const applyBord = live => {
+    const l = omResolveLayer(omPropsLayerId);
+    if (!l) return;
+    omPropsBegin();
+    if (bordChk.checked) {
+      const size = Math.max(0, Number(num("#om-propBordSize").value) || 4);
+      const col = String(num("#om-propBordColor").value || "#ffffff");
+      const dir = num("#om-propBordDir").value || "outside";
+      l.border = {
+        direction: dir,
+        color: parseHexColor("ff" + col.slice(1)),
+        size: size,
+        enabled: true
+      };
+      num("#om-propBordSize").value = size;
+    } else delete l.border;
+    if (live) V = true;
+    try {
+      val2 && val2.renderAt(H);
+    } catch (e) {}
+    live && omPropsCommit();
+  };
+  bordChk.addEventListener("change", () => {
+    num("#om-propBordRow").style.display = bordChk.checked ? "" : "none", applyBord(true);
+  });
+  num("#om-propBordSize").addEventListener("change", () => applyBord(true));
+  num("#om-propBordDir").addEventListener("change", () => applyBord(true));
+  num("#om-propBordColor").addEventListener("input", () => applyBord(false));
+  num("#om-propBordColor").addEventListener("change", () => omPropsCommit());
+  const shadChk = panel.querySelector("#om-propShad");
+  const applyShad = live => {
+    const l = omResolveLayer(omPropsLayerId);
+    if (!l) return;
+    omPropsBegin();
+    if (shadChk.checked) {
+      const size = Math.max(0, Number(num("#om-propShadSize").value) || 8);
+      const ox = Number(num("#om-propShadX").value) || 0;
+      const oy = Number(num("#om-propShadY").value) || 4;
+      const col = String(num("#om-propShadColor").value || "#000000");
+      l.shadow = {
+        enabled: true,
+        direction: "outside",
+        color: parseHexColor("80" + col.slice(1)),
+        size: size,
+        offset: [ox, oy]
+      };
+      num("#om-propShadSize").value = size;
+    } else delete l.shadow;
+    if (live) V = true;
+    try {
+      val2 && val2.renderAt(H);
+    } catch (e) {}
+    live && omPropsCommit();
+  };
+  shadChk.addEventListener("change", () => {
+    num("#om-propShadRow").style.display = shadChk.checked ? "" : "none", applyShad(true);
+  });
+  num("#om-propShadSize").addEventListener("change", () => applyShad(true));
+  num("#om-propShadX").addEventListener("change", () => applyShad(true));
+  num("#om-propShadY").addEventListener("change", () => applyShad(true));
+  num("#om-propShadColor").addEventListener("input", () => applyShad(false));
+  num("#om-propShadColor").addEventListener("change", () => omPropsCommit());
+  const kfSec = document.createElement("div");
+  kfSec.className = "om-props-sec", kfSec.id = "om-sec-kf", kfSec.textContent = "Keyframe";
+  const kfRow = document.createElement("div");
+  kfRow.className = "om-props-row", kfRow.style.cssText = "flex-wrap:wrap;gap:5px";
+  [["P", "loc"], ["R", "rot"], ["S", "sc"], ["O", "op"]].forEach(([lab, prop2]) => {
+    const b = document.createElement("button");
+    b.type = "button", b.dataset.kfp = prop2, b.textContent = "◇ " + lab, b.title = "Tambah keyframe";
+    b.addEventListener("click", () => {
+      omActProp = prop2, omKfInsert(prop2);
+    });
+    kfRow.appendChild(b);
+  });
+  const cvb = document.createElement("button");
+  cvb.type = "button", cvb.className = "btn sm", cvb.id = "om-open-curve", cvb.textContent = "Curve…", cvb.disabled = true, cvb.title = "Buka curve editor";
+  cvb.addEventListener("click", () => omOpenCurve());
+  kfRow.appendChild(cvb), panel.appendChild(kfSec), panel.appendChild(kfRow);
+}
+omInitPropsPanel();
+// hook seleksi layer (apply13 dipanggil tiap ada layer dipilih di timeline/scene-tree)
+apply13 = (function(orig) {
+  return function(a, b) {
+    const r = orig(a, b);
+    try {
+      omPropsLayerId = a ? a.id : null, omPropsRefresh();
+      if (typeof window.omOnLayerSelected === "function") window.omOnLayerSelected(a);
+    } catch (e) {}
+    return r;
+  };
+})(apply13);
+// refresh panel saat timeline di-rebuild (undo/reorder/dll)
+bind4 = (function(orig) {
+  return function() {
+    const r = orig.apply(this, arguments);
+    try {
+      omPropsRefresh();
+    } catch (e) {}
+    return r;
+  };
+})(bind4);
+// ---------- Element Edit Panel (strip bawah, gaya AM) ----------
+function omLayerCur() {
+  return omPropsLayerId != null ? omResolveLayer(omPropsLayerId) : null;
+}
+function omHasAudioLayer(l) {
+  return !!l && (l.tag === "audio" || !!l.fillVideo || !!l.src);
+}
+function omBarUpdate(layer) {
+  const bar = document.getElementById("om-elembar");
+  if (!bar) return;
+  const en = {
+    "Trim kiri": !!layer,
+    "Split": !!layer,
+    "Trim kanan": !!layer,
+    "Mute": !!(layer && omHasAudioLayer(layer)),
+    "Teks": !!(layer && layer.tag === "text"),
+    "Color & Fill": !!layer,
+    "Border & Shadow": !!layer,
+    "Blending & Opacity": !!layer,
+    "Move & Transform": !!layer
+  };
+  bar.querySelectorAll("button").forEach(b => {
+    const r = b.dataset.role;
+    if (r && r in en) b.disabled = !en[r];
+  });
+}
+function omFocusSec(sec) {
+  omPropsRefresh();
+  const el = document.getElementById(sec);
+  if (el) {
+    el.scrollIntoView({
+      block: "nearest",
+      behavior: "smooth"
+    });
+    const p = document.getElementById("om-props");
+    p && (p.scrollTop = Math.max(0, el.offsetTop - 60));
+  }
+}
+function omTrimSide(side, layer) {
+  const ids = omMulti.size ? omMultiIds() : [];
+  const targets = ids.length ? ids.map(id => omResolveLayer(id)).filter(Boolean) : [layer || omLayerCur()].filter(Boolean);
+  if (!targets.length) return handle9("[EDIT] trim: pilih layer terlebih dahulu");
+  const snap = sceneSnapshot();
+  let count = 0;
+  for (const l of targets) {
+    const t = H,
+      s = l.startTime || 0,
+      e = l.endTime != null ? l.endTime : (val ? val.totalTime : 0);
+    if (t <= s + 50 || t >= e - 50) continue;
+    if (side === "l") {
+      const cut = t - s;
+      l.startTime = t;
+      if (l.inTime != null || l.outTime != null || l.src || l.fillVideo) {
+        l.inTime = (l.inTime || 0) + cut;
+      }
+    } else {
+      l.endTime = t;
+      if (l.inTime != null || l.outTime != null || l.src || l.fillVideo) {
+        l.outTime = (l.inTime || 0) + (t - s);
+      }
+    }
+    count++;
+  }
+  if (!count) return handle9("[EDIT] trim: geser playhead dulu ke dalam layer");
+  pushUndo(snap), V = true;
+  handle9("[EDIT] " + (side === "l" ? "Trim kiri" : "Trim kanan") + " (" + count + " layer) → " + Math.round(H) + " ms");
+  bind4(), val2 && val2.renderAt(H);
+}
+function omMuteToggle() {
+  const l = omLayerCur();
+  if (!l) return;
+  const snap = sceneSnapshot();
+  const cur = l.gain && l.gain.value ? Number(l.gain.value[0]) : 1;
+  l.gain = {
+    value: [cur > 0 ? 0 : 1],
+    kfs: []
+  }, pushUndo(snap), V = true;
+  handle9("[EDIT] " + (cur > 0 ? "Mute" : "Unmute") + " layer \"" + (l.label || l.id) + "\"");
+  try {
+    val2 && val2.renderAt(H);
+  } catch (e) {}
+}
+function omSetLayerSpeed(layer, speed, stretchDuration = true) {
+  const l = layer || omLayerCur();
+  if (!l) return;
+  const snap = sceneSnapshot();
+  const s = Math.max(0.1, Math.min(16, Number(speed) || 1));
+  const curDur = Math.max(50, (l.endTime != null ? l.endTime : (val ? val.totalTime : 0)) - (l.startTime || 0));
+  if (!l._origDuration || typeof l._origDuration !== "number") {
+    l._origDuration = curDur * (l.speed || 1);
+  }
+  l.speed = s;
+  l.timeScale = s;
+  if (stretchDuration) {
+    l.timeStretchMode = "stretch";
+    const newDur = Math.max(50, Math.round(l._origDuration / s));
+    l.endTime = (l.startTime || 0) + newDur;
+    omExtendTotal(l.endTime);
+  } else {
+    l.timeStretchMode = "keep";
+  }
+  pushUndo(snap), V = true;
+  handle9("[SPEED] Kecepatan layer \"" + (l.label || l.id) + "\" diatur ke " + s + "x (" + (l.timeStretchMode === "stretch" ? "Ubah Durasi" : "Pertahankan Durasi") + ")");
+  bind4(), val2 && val2.renderAt(H);
+}
+function omRetime(action, layer) {
+  const l = layer || omLayerCur();
+  if (!l) return handle9("[RETIME] Pilih layer terlebih dahulu");
+  const snap = sceneSnapshot();
+  const t = Math.round(H);
+  let s = l.startTime || 0;
+  let e = l.endTime != null ? l.endTime : (val ? val.totalTime : 0);
+  const curDur = Math.max(50, e - s);
+  if (!l._origDuration) l._origDuration = curDur * (l.speed || 1);
+
+  if (action === "extend_start") {
+    const newStart = Math.min(t, e - 50);
+    const newDur = Math.max(50, e - newStart);
+    const ratio = curDur / newDur;
+    l.startTime = newStart;
+    l.speed = Number(Math.max(0.1, Math.min(16, (l.speed || 1) * ratio)).toFixed(3));
+    l.timeScale = l.speed;
+  } else if (action === "reduce_start") {
+    const newStart = Math.min(Math.max(t, 0), e - 50);
+    const newDur = Math.max(50, e - newStart);
+    const ratio = curDur / newDur;
+    l.startTime = newStart;
+    l.speed = Number(Math.max(0.1, Math.min(16, (l.speed || 1) * ratio)).toFixed(3));
+    l.timeScale = l.speed;
+  } else if (action === "reduce_end") {
+    const newEnd = Math.max(t, s + 50);
+    const newDur = Math.max(50, newEnd - s);
+    const ratio = curDur / newDur;
+    l.endTime = newEnd;
+    l.speed = Number(Math.max(0.1, Math.min(16, (l.speed || 1) * ratio)).toFixed(3));
+    l.timeScale = l.speed;
+  } else if (action === "extend_end") {
+    const newEnd = Math.max(t, s + 50);
+    const newDur = Math.max(50, newEnd - s);
+    const ratio = curDur / newDur;
+    l.endTime = newEnd;
+    l.speed = Number(Math.max(0.1, Math.min(16, (l.speed || 1) * ratio)).toFixed(3));
+    l.timeScale = l.speed;
+    omExtendTotal(l.endTime);
+  }
+  pushUndo(snap), V = true;
+  handle9("[RETIME] " + action + " layer \"" + (l.label || l.id) + "\" (" + l.speed + "x, durasi " + Math.round(l.endTime - l.startTime) + " ms)");
+  bind4(), val2 && val2.renderAt(H);
+}
+function omToggleFreezeFrame(layer) {
+  const l = layer || omLayerCur();
+  if (!l) return;
+  const snap = sceneSnapshot();
+  if (l.freezeTime != null) {
+    l.freezeTime = null;
+    l.freezeFrame = false;
+    handle9("[SPEED] Freeze frame dinonaktifkan");
+  } else {
+    const s = l.startTime || 0;
+    const dur = Math.max(1, (l.endTime != null ? l.endTime : (val ? val.totalTime : 0)) - s);
+    const norm = Math.max(0, Math.min(1, (H - s) / dur));
+    l.freezeTime = norm;
+    l.freezeFrame = true;
+    handle9("[SPEED] Freeze frame aktif di " + (norm * 100).toFixed(1) + "%");
+  }
+  pushUndo(snap), V = true;
+  val2 && val2.renderAt(H);
+}
+function omToggleReverse(layer) {
+  const l = layer || omLayerCur();
+  if (!l) return;
+  const snap = sceneSnapshot();
+  l.reversed = !l.reversed;
+  pushUndo(snap), V = true;
+  handle9("[SPEED] Putar balik (Reverse) " + (l.reversed ? "aktif" : "nonaktif"));
+  val2 && val2.renderAt(H);
+}
+function omSetSpeedCurve(layer, curveType) {
+  const l = layer || omLayerCur();
+  if (!l) return;
+  const snap = sceneSnapshot();
+  if (!curveType || curveType === "linear") {
+    l.speedCurve = null;
+  } else {
+    const curves = {
+      ease_in: (t) => t * t,
+      ease_out: (t) => t * (2 - t),
+      ease_in_out: (t) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t),
+      fast_start: (t) => 1 - Math.pow(1 - t, 3),
+      slow_motion: (t) => (t < 0.5 ? 0.5 * Math.pow(2 * t, 0.6) : 1 - 0.5 * Math.pow(2 * (1 - t), 0.6)),
+      dramatic: (t) => Math.pow(t, 3)
+    };
+    l.speedCurve = {
+      type: curveType,
+      evaluate: curves[curveType] || ((t) => t)
+    };
+  }
+  pushUndo(snap), V = true;
+  handle9("[SPEED] Kurva kecepatan diatur ke " + (curveType || "linear"));
+  val2 && val2.renderAt(H);
+}
+function omOpenTextDlg(layer) {
+  const l = layer || omLayerCur();
+  if (!l || l.tag !== "text") return;
+  if (typeof window.omOpenTextEditor === "function") {
+    return window.omOpenTextEditor(l);
+  }
+  if (document.getElementById("om-txt-back")) return;
+  const back = document.createElement("div");
+  back.id = "om-txt-back";
+  back.style.cssText = "position:fixed;inset:0;z-index:100003;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px";
+  back.innerHTML = '<div class="om-dialog" style="max-width:380px"><h2>Edit Text</h2><div class="om-field"><label>Teks</label><textarea id="om-txt" rows="4" style="width:100%;background:var(--card);border:1px solid var(--line2);border-radius:8px;color:var(--text);padding:8px"></textarea></div><div class="om-row"><label class="field" style="flex:1">Ukuran<input type="number" id="om-txtsize" min="1" max="600" step="1"></label><label class="field" style="flex:1">Align<select id="om-txtalign"><option value="left">Kiri</option><option value="center">Tengah</option><option value="right">Kanan</option></select></label></div><button class="om-btn primary" type="button" id="om-txtok">Terapkan</button><button class="om-btn" type="button" id="om-txtcancel" style="margin-top:8px;background:var(--card);color:var(--text)">Batal</button></div>';
+  document.body.appendChild(back);
+  const ta = back.querySelector("#om-txt");
+  ta.value = l.textContent || "", back.querySelector("#om-txtsize").value = l.fontSize || 48, back.querySelector("#om-txtalign").value = l.align || "center";
+  const close = () => back.remove();
+  back.querySelector("#om-txtcancel").addEventListener("click", close);
+  back.addEventListener("pointerdown", e => {
+    if (e.target === back) close();
+  });
+  back.querySelector("#om-txtok").addEventListener("click", () => {
+    const layer = omLayerCur();
+    if (!layer) return close();
+    const snap = sceneSnapshot();
+    layer.textContent = ta.value;
+    layer.fontSize = Math.max(1, Number(back.querySelector("#om-txtsize").value) || layer.fontSize || 48);
+    layer.align = back.querySelector("#om-txtalign").value;
+    pushUndo(snap), V = true, handle9("[EDIT] Teks layer \"" + (layer.label || layer.id) + "\" diperbarui");
+    try {
+      val2 && val2.renderAt(H);
+    } catch (e) {}
+    close();
+  });
+  setTimeout(() => ta.focus(), 60);
+}
+function omInitElemBar() {
+  if (document.getElementById("om-elembar")) return;
+  const st = document.createElement("style");
+  st.textContent = "#om-elembar{position:fixed;left:50%;transform:translateX(-50%);bottom:6px;z-index:9997;display:none;gap:6px;padding:6px 8px;background:var(--panel);border:1px solid var(--line2);border-radius:14px;box-shadow:0 8px 26px rgba(0,0,0,.45);max-width:min(96vw,900px);overflow-x:auto}#om-elembar.on{display:flex}#om-elembar button{font-size:.72rem;padding:7px 9px;white-space:nowrap}#om-elembar button:disabled{opacity:.42;cursor:not-allowed}";
+  document.head.appendChild(st);
+  const bar = document.createElement("div");
+  bar.id = "om-elembar";
+  const mk = (label, fn, dis, title) => {
+    const b = document.createElement("button");
+    b.type = "button", b.className = "btn sm", b.textContent = label, b.dataset.role = label;
+    if (dis) b.disabled = true;
+    if (title) b.title = title;
+    b.addEventListener("click", () => {
+      try {
+        fn();
+      } catch (e) {
+        handle9("[EDIT] " + e.message);
+      }
+    });
+    bar.appendChild(b);
+    return b;
+  };
+  mk("Speed", () => {}, true, "Speed control menyusul");
+  mk("Trim kiri", () => omTrimSide("l"), true);
+  mk("Split", () => {
+    const l = omLayerCur();
+    l && splitLayerAt(l);
+  }, true);
+  mk("Trim kanan", () => omTrimSide("r"), true);
+  mk("Mute", () => omMuteToggle(), true, "Layer ini gak punya audio");
+  mk("Teks", () => omOpenTextDlg(), true);
+  mk("Color & Fill", () => omFocusSec("om-sec-fill"), true);
+  mk("Border & Shadow", () => omFocusSec("om-sec-bord"), true);
+  mk("Blending & Opacity", () => omFocusSec("om-sec-blend"), true);
+  mk("Move & Transform", () => {
+    if (typeof window.omOpenMoveTransform === "function") window.omOpenMoveTransform();
+    else omFocusSec("om-sec-xf");
+  }, true);
+  mk("Edit Points", () => {}, true, "Editor titik vektor menyusul");
+  mk("Efek", () => {}, true, "Browser efek menyusul");
+  mk("Preset", () => {}, true, "Preset layer menyusul");
+  document.body.appendChild(bar);
+  omBarUpdate(omLayerCur());
+}
+omInitElemBar();
+// ---------- Browser & Tambah & Setelan Efek ----------
+var omFxIndexCache = null,
+  omFxDialogLayer = null;
+async function omFxIndex() {
+  if (omFxIndexCache) return omFxIndexCache;
+  const idx = await (await fetch("./effect-index.json")).json();
+  const seen = new Set(),
+    list = [];
+  for (const id of Object.keys(idx)) {
+    const f = idx[id];
+    if (typeof f !== "string" || !f.endsWith(".xml") || seen.has(f)) continue;
+    seen.add(f), list.push({
+      id,
+      f
+    });
+  }
+  const out = [];
+  for (let i = 0; i < list.length; i += 24) {
+    const chunkL = list.slice(i, i + 24);
+    const res = await Promise.all(chunkL.map(async e => {
+      let name = e.id,
+        cat = "other",
+        xml = "";
+      try {
+        const r = await fetch("./effects/" + e.f);
+        if (r.ok) xml = await r.text();
+      } catch (err) {}
+      const nm = /<effect\b[^>]*\bname="([^"]*)"/.exec(xml);
+      if (nm) name = nm[1];
+      const ct = /<effect\b[^>]*\bcategory="([^"]*)"/.exec(xml);
+      if (ct) cat = ct[1];
+      return {
+        id: e.id,
+        f: e.f,
+        name,
+        cat,
+        xml
+      };
+    }));
+    out.push(...res);
+  }
+  omFxIndexCache = {
+    list: out,
+    byId: new Map(out.map(e => [e.id, e]))
+  };
+  return omFxIndexCache;
+}
+function omEffectObjFromXml(xml, id) {
+  try {
+    const doc = new DOMParser().parseFromString(xml, "text/xml");
+    const el = doc.querySelector("effect");
+    if (!el) return null;
+    const params = [];
+    el.querySelectorAll("params > *").forEach(p => {
+      const pid = p.getAttribute("id");
+      if (!pid) return;
+      const t = p.tagName,
+        def = p.getAttribute("default"),
+        valueList = (def || "").split(",").map(Number);
+      let dt, value;
+      if (t === "spinner" || t === "slider") {
+        dt = "float", value = [Number(def) || 0];
+      } else if (t === "switch") {
+        dt = "bool", value = [(def === "true" || def === "1") ? 1 : 0];
+      } else if (t === "color") {
+        dt = "color", value = parseHexColor(def || "#ffffffff");
+      } else if (t === "point") {
+        dt = "vec2", value = valueList;
+      } else if (t === "xyz" || t === "hue-disc") {
+        dt = "vec3", value = valueList;
+      } else if (t === "selector") {
+        dt = "int", value = [parseInt(def) || 0];
+      } else return;
+      if (!Array.isArray(value)) value = [Number(value) || 0];
+      while (dt === "vec2" && value.length < 2) value.push(0);
+      while (dt === "vec3" && value.length < 3) value.push(0);
+      params.push({
+        id: pid,
+        dataType: dt,
+        channel: {
+          value,
+          kfs: []
+        }
+      });
+    });
+    return {
+      id,
+      shortId: String(id).split(".").pop(),
+      locallyApplied: true,
+      hidden: false,
+      params
+    };
+  } catch (e) {
+    return null;
+  }
+}
+function omFxParamDef(entry, pid) {
+  if (!entry || !entry.xml) return null;
+  const m = new RegExp('<param\\s+[^>]*\\bid="' + pid.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + '"[^>]*>', 'i').exec(entry.xml) || new RegExp('<' + '[a-z]+[^>]*\\bid="' + pid.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + '"[^>]*/?>', 'i').exec(entry.xml);
+  if (!m) return null;
+  const s = m[0];
+  return {
+    min: s.match(/min="(-?[\d.]+)"/) ? Number(RegExp.$1) : 0,
+    max: s.match(/max="(-?[\d.]+)"/) ? Number(RegExp.$1) : 100,
+    step: s.match(/step="(-?[\d.]+)"/) ? Number(RegExp.$1) : 0.01,
+    choices: [...(s.matchAll(/<choice\s+value="([^"]*)"/g) || [])].map(x => x[1]),
+    pc: /\btype="percent"/.test(s),
+    deg: /\btype="angle"/.test(s)
+  };
+}
+function omFxWriteChannel(ch, v, animate) {
+  ch.value = Array.isArray(v) ? v : [v];
+  if (animate || (ch.kfs && ch.kfs.length)) {
+    ch.kfs = ch.kfs || [];
+    const t = H / 1000,
+      i = ch.kfs.findIndex(k => Math.abs(Number(k.t) - t) < 0.001);
+    const arr = ch.value;
+    if (i >= 0) ch.kfs[i] = { t, v: arr, e: null, easing: null };
+    else ch.kfs.push({ t, v: arr, e: null, easing: null });
+    ch.kfs.sort((a, b) => a.t - b.t);
+  }
+}
+async function omAddFxToLayer(layer, entry) {
+  const e = omEffectObjFromXml(entry.xml, entry.id);
+  if (!e) return handle9("[FX] gagal parse efek " + entry.id);
+  const snap = sceneSnapshot();
+  layer.effects.push(e), pushUndo(snap), V = true;
+  handle9("[FX] Tambah efek \"" + entry.name + "\" ke \"" + (layer.label || layer.id) + "\"");
+  await omHandle21InContext();
+  val2 && val2.renderAt(H);
+}
+function omOpenFxDialog() {
+  const l = omLayerCur();
+  if (!l || document.getElementById("om-fx-back")) return;
+  omFxDialogLayer = l;
+  const back = document.createElement("div");
+  back.id = "om-fx-back";
+  back.style.cssText = "position:fixed;inset:0;z-index:100004;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:14px";
+  back.innerHTML = '<div class="om-dialog" style="max-width:560px;min-width:min(92vw,560px)"><h2>Efek — <span id="om-fx-layer">' + (l.label || l.id) + "</span></h2>" + '<div class="om-fx-tabs"><button type="button" class="om-chip on" data-t="browse">Tambah Efek</button><button type="button" class="om-chip" data-t="set">Efek Aktif (' + (l.effects ? l.effects.length : 0) + ')</button></div>' + '<div id="om-fx-browse"><input type="search" id="om-fx-q" placeholder="Cari efek…" style="width:100%;background:var(--card);border:1px solid var(--line2);border-radius:8px;color:var(--text);padding:9px 10px;margin:8px 0"><div id="om-fx-cats" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px"></div><div id="om-fx-list" style="max-height:46vh;overflow:auto"></div></div>' + '<div id="om-fx-set" style="display:none;max-height:52vh;overflow:auto"></div></div>';
+  document.body.appendChild(back);
+  back.addEventListener("pointerdown", e => {
+    if (e.target === back) back.remove();
+  });
+  const tabBtn = (sel) => back.querySelector(sel);
+  back.querySelector(".om-fx-tabs").addEventListener("click", e => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    back.querySelectorAll(".om-fx-tabs button").forEach(x => x.classList.toggle("on", x === b));
+    const t = b.dataset.t;
+    back.querySelector("#om-fx-browse").style.display = t === "browse" ? "" : "none";
+    back.querySelector("#om-fx-set").style.display = t === "set" ? "" : "none";
+    if (t === "set") omFxRenderSet();
+  });
+  const q = back.querySelector("#om-fx-q");
+  q.addEventListener("input", () => omFxRenderBrowse(q.value));
+  back.querySelector("#om-fx-list").addEventListener("click", e => {
+    const b = e.target.closest("button[data-fx]");
+    if (!b) return;
+    const entry = omFxIndexCache.byId.get(b.dataset.fx);
+    if (entry) omAddFxToLayer(omFxDialogLayer, entry).then(() => {
+      back.querySelector(".om-fx-tabs button[data-t='set']").textContent = "Efek Aktif (" + (omFxDialogLayer.effects ? omFxDialogLayer.effects.length : 0) + ")";
+      omFxRenderSet();
+    });
+  });
+  back.querySelector("#om-fx-set").addEventListener("click", e => {
+    const rm = e.target.closest("button[data-fxrm]");
+    if (!rm) {
+      const tog = e.target.closest("input[data-fxtg]");
+      if (tog) {
+        const idx = Number(tog.dataset.fxtg), l2 = omFxDialogLayer;
+        if (l2 && l2.effects && l2.effects[idx]) {
+          const snap = sceneSnapshot();
+          l2.effects[idx].hidden = !tog.checked, pushUndo(snap), V = true;
+          try { val2 && val2.renderAt(H); } catch (e2) {}
+        }
+        return;
+      }
+      return;
+    }
+    const idx = Number(rm.dataset.fxrm), l2 = omFxDialogLayer;
+    if (!l2 || !l2.effects) return;
+    const snap = sceneSnapshot();
+    l2.effects.splice(idx, 1), pushUndo(snap), V = true;
+    handle9("[FX] Efek dihapus dari \"" + (l2.label || l2.id) + "\"");
+    try {
+      val2.renderAt(H);
+    } catch (e2) {}
+    omFxRenderSet();
+  });
+  back.querySelector("#om-fx-set").addEventListener("input", e => {
+    const w = e.target.closest("[data-pi]");
+    if (!w) return;
+    const [fi, pi] = String(w.dataset.pi).split(":").map(Number);
+    const l2 = omFxDialogLayer, fx = l2 && l2.effects && l2.effects[fi], p = fx && fx.params && fx.params[pi];
+    if (!p) return;
+    if (!w.__snap) {
+      w.__snap = sceneSnapshot(), w.__committed = false;
+    }
+    w.__committed = false;
+    let v;
+    if (p.dataType === "bool") v = e.target.checked ? 1 : 0;
+    else if (p.dataType === "color") v = parseHexColor("ff" + String(e.target.value).slice(1));
+    else if (p.dataType === "int") v = parseInt(e.target.value) || 0;
+    else v = Number(e.target.value) || 0;
+    const animated = !!p.channel.kfs.length;
+    omFxWriteChannel(p.channel, v, animated);
+    V = true;
+    try { val2 && val2.renderAt(H); } catch (e2) {}
+  });
+  back.querySelector("#om-fx-set").addEventListener("change", e => {
+    const w = e.target.closest("[data-pi]");
+    if (!w) return;
+    if (w.__snap) {
+      pushUndo(w.__snap);
+      w.__snap = null;
+    }
+    V = true;
+    try { val2 && val2.renderAt(H); } catch (e2) {}
+  });
+  back.querySelector("#om-fx-set").addEventListener("click", e => {
+    const cv = e.target.closest("button[data-fxcurve]");
+    if (cv) {
+      const [fi, pi] = String(cv.dataset.fxcurve).split(":").map(Number);
+      const l2 = omFxDialogLayer, fx = l2 && l2.effects && l2.effects[fi], p = fx && fx.params && fx.params[pi];
+      if (p && p.channel && typeof window.omOpenCurveEditor === "function") {
+        window.omOpenCurveEditor({
+          layer: l2,
+          channel: p.channel,
+          title: (fx.name || fx.id) + " - " + p.id
+        });
+      }
+      return;
+    }
+    const d = e.target.closest("button[data-fxkf]");
+    if (!d) return;
+    const [fi, pi] = String(d.dataset.fxkf).split(":").map(Number);
+    const l2 = omFxDialogLayer, fx = l2 && l2.effects && l2.effects[fi], p = fx && fx.params && fx.params[pi];
+    if (!p) return;
+    const snap = sceneSnapshot();
+    const cur = p.channel.value || [0];
+    omFxWriteChannel(p.channel, cur, true);
+    pushUndo(snap), V = true;
+    try { val2 && val2.renderAt(H); } catch (e2) {}
+    omFxRenderSet();
+  });
+  omFxOpenBrowse();
+}
+function omFxOpenBrowse() {
+  const list = document.getElementById("om-fx-list");
+  if (!list) return;
+  list.innerHTML = '<div class="hint">Menyiapkan katalog efek…</div>';
+  omFxIndex().then(idx => {
+    const catsEl = document.getElementById("om-fx-cats");
+    const cats = [...new Set(idx.list.map(e => e.cat))].sort();
+    const all = document.createElement("button");
+    all.type = "button", all.className = "om-chip on", all.textContent = "Semua (" + idx.list.length + ")";
+    all.addEventListener("click", () => {
+      catsEl.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === all));
+      omFxRenderBrowse("");
+    });
+    catsEl.appendChild(all);
+    cats.forEach(c => {
+      const n = idx.list.filter(e => e.cat === c).length;
+      const b = document.createElement("button");
+      b.type = "button", b.className = "om-chip", b.dataset.cat = c, b.textContent = c + " (" + n + ")";
+      b.addEventListener("click", () => {
+        catsEl.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+        omFxRenderBrowse(document.getElementById("om-fx-q").value);
+      });
+      catsEl.appendChild(b);
+    });
+    omFxRenderBrowse("");
+  }).catch(e => {
+    list.innerHTML = '<div class="hint">Katalog gagal dimuat: ' + e.message + '</div>';
+  });
+}
+function omFxRenderBrowse(qstr) {
+  const list = document.getElementById("om-fx-list");
+  if (!list || !omFxIndexCache) return;
+  const activeCat = document.querySelector("#om-fx-cats .om-chip.on");
+  const cat = activeCat && activeCat.dataset.cat;
+  const qc = (qstr || "").toLowerCase().trim();
+  const items = omFxIndexCache.list.filter(e => (!cat || e.cat === cat) && (!qc || e.name.toLowerCase().includes(qc) || e.id.toLowerCase().includes(qc)));
+  list.innerHTML = items.length ? items.map(e => '<button type="button" class="btn sm" data-fx="' + e.id + '" style="width:100%;text-align:left;margin-bottom:5px">' + e.name + ' <span style="opacity:.6;font-size:.68rem">' + e.cat + '</span></button>').join("") : '<div class="hint">Efek tidak ditemukan</div>';
+}
+function omFxWidget(dt, p, entry, fi, pi) {
+  const ch = p.channel || { value: [0], kfs: [] };
+  p.channel = ch;
+  const v0 = ch.value[0];
+  const idSafe = fi + ":" + pi;
+  if (dt === "bool") return '<label class="check"><input type="checkbox" data-pi="' + idSafe + '"' + (v0 ? " checked" : "") + '><span>aktif</span></label>';
+  if (dt === "color") {
+    const hex = omHexFrom(ch.value);
+    return '<div class="om-props-row"><input type="color" data-pi="' + idSafe + '" value="' + hex + '" title="warna"></div>';
+  }
+  if (dt === "int") {
+    const d = omFxParamDef(entry, p.id);
+    if (d && d.choices && d.choices.length) return '<select data-pi="' + idSafe + '">' + d.choices.map((c, i) => '<option value="' + i + '"' + (Math.round(Number(ch.value[0])) === i ? " selected" : "") + ">" + c + "</option>").join("") + '</select>';
+    return '<input type="number" data-pi="' + idSafe + '" step="1" value="' + Number(ch.value[0]) + '">';
+  }
+  const d = omFxParamDef(entry, p.id) || {};
+  const step = d.step || 0.01;
+  const min = d.min;
+  const max = d.max;
+  const cur = Number(ch.value[0]);
+  return '<input type="range" data-pi="' + idSafe + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + cur + '"> <b data-v="' + idSafe + '">' + cur.toFixed(2) + '</b>';
+}
+function omFxRenderSet() {
+  const box = document.getElementById("om-fx-set");
+  const l2 = omFxDialogLayer;
+  if (!box || !l2) return;
+  box.innerHTML = "";
+  (l2.effects || []).forEach((fx, fi) => {
+    const entry = omFxIndexCache && omFxIndexCache.byId.get(fx.id);
+    const row = document.createElement("div");
+    row.style.cssText = "border:1px solid var(--line2);border-radius:10px;padding:8px;margin-bottom:8px";
+    row.innerHTML = '<div class="om-props-row" style="justify-content:space-between"><span style="font-weight:600;font-size:.82rem">' + (entry ? entry.name : fx.shortId || fx.id) + '</span><span class="om-props-row"><label class="check"><input type="checkbox" data-fxtg="' + fi + '"' + ((fx.hidden === true || fx.hidden === "true") ? "" : " checked") + '><span>on</span></label><button type="button" class="btn sm" data-fxrm="' + fi + '">✕ hapus</button></span></div>';
+    (fx.params || []).forEach((p, pi) => {
+      if (p.dataType === "texture") return;
+      const wr = document.createElement("div");
+      wr.className = "om-props-row";
+      wr.style.cssText = "margin-top:6px;gap:6px";
+      const hasKfs = p.channel && p.channel.kfs && p.channel.kfs.length >= 2;
+      wr.innerHTML = '<span style="font-size:.72rem;min-width:80px;color:var(--muted)">' + p.id + '</span>' + omFxWidget(p.dataType, p, entry, fi, pi) + '<button type="button" class="btn sm icon" style="height:26px;padding:0 6px" data-fxkf="' + fi + ':' + pi + '" title="Tambah keyframe" ' + (p.channel.kfs && p.channel.kfs.length ? 'style="height:26px;border-color:var(--accent)"' : "") + '>◇</button>' + (hasKfs ? '<button type="button" class="btn sm icon" style="height:26px;padding:0 6px;margin-left:2px" data-fxcurve="' + fi + ':' + pi + '" title="Kurva Easing Animasi"><img src="./icons/ac_ic_anim_curve.svg" style="width:14px;height:14px;filter:brightness(0) invert(1);"></button>' : '');
+      wr.querySelector("[data-v]") || wr.addEventListener("input", e => {
+        const vn = wr.querySelector('[data-v="' + fi + ":" + pi + '"]');
+        if (vn) vn.textContent = Number(e.target.value).toFixed(2);
+      });
+      row.appendChild(wr);
+    });
+    box.appendChild(row);
+  });
+  if (!l2.effects || !l2.effects.length) box.innerHTML = '<div class="hint">Belum ada efek. Buka tab Tambah Efek.</div>';
+}
+// wiring: tombol Efek di elem bar vs om-props disable -> sekarang buka dialog
+if (document.getElementById("om-elembar")) {
+  const btn = [...document.querySelectorAll("#om-elembar button")].find(b => b.dataset.role === "Efek");
+  if (btn) {
+    btn.disabled = false;
+    btn.title = "Browser efek";
+    btn.onclick = omOpenFxDialog;
+  }
+}
+// ---------- Keyframe diamond & Curve Editor (transform) ----------
+var omActProp = "loc";
+function omKeyableOf(t, p) {
+  if (p === "gain") {
+    const l = omPropsLayerId != null ? omResolveLayer(omPropsLayerId) : null;
+    return l ? l.gain : null;
+  }
+  return p === "loc" ? t.location : p === "rot" ? t.rotation : p === "sc" ? t.scale : p === "op" ? t.opacity : p === "skew" ? t.skew : p === "pivot" ? t.pivot : null;
+}
+function omKfRefresh() {
+  const panel = document.getElementById("om-props");
+  if (!panel) return;
+  const t = readGlobalT && readGlobalT() || null;
+  panel.querySelectorAll("button[data-kfp]").forEach(b => {
+    const k = t && omKeyableOf(t, b.dataset.kfp);
+    b.classList.toggle("on", !!(k && k.kfs && k.kfs.length));
+  });
+  const cb = panel.querySelector("#om-open-curve");
+  const any = t && (["loc", "rot", "sc", "op"].some(n => {
+    const k = omKeyableOf(t, n);
+    return k && k.kfs && k.kfs.length >= 2;
+  }));
+  cb && (cb.disabled = !any);
+  panel.querySelectorAll("button[data-kfp]").forEach(b => {
+    const k = t && omKeyableOf(t, b.dataset.kfp);
+    b.title = (k && k.kfs && k.kfs.length) ? "KF aktif (" + k.kfs.length + ")" : "Tambah keyframe";
+  });
+}
+function readGlobalT() {
+  const l = omPropsLayerId != null ? omResolveLayer(omPropsLayerId) : null;
+  return l && l.transform ? l.transform : null;
+}
+function omKfInsert(propName, optLayer) {
+  const l9 = optLayer || (omPropsLayerId != null ? omResolveLayer(omPropsLayerId) : null);
+  if (l9) l9.userTouched = true;
+  if (propName === "gain" && l9) {
+    if (!l9.gain) l9.gain = { value: [1], kfs: [] };
+    else if (typeof l9.gain === "number") l9.gain = { value: [l9.gain], kfs: [] };
+    const k = l9.gain;
+    const snap = sceneSnapshot();
+    const tt = H / 1000;
+    const arr = Array.isArray(k.value) ? k.value.concat() : [Number(k.value) || 1];
+    k.kfs = k.kfs || [];
+    const i = k.kfs.findIndex(x => Math.abs(Number(x.t) - tt) < 0.002);
+    if (i >= 0) k.kfs[i].v = arr;
+    else k.kfs.push({ t: tt, v: arr, e: null, easing: null });
+    k.kfs.sort((x, y) => x.t - y.t);
+    pushUndo(snap), V = true;
+    handle9("[EDIT] Keyframe gain @ " + tt.toFixed(3) + "s");
+    try { val2 && val2.renderAt(H); } catch(e){}
+    omKfRefresh();
+    return;
+  }
+  if ((propName === "stroke" || propName === "strokeWidth") && l9) {
+    if (!l9.strokeKeyable) {
+      const curW = l9.strokeWidth !== undefined ? Number(l9.strokeWidth) : 10;
+      l9.strokeKeyable = { value: [curW], kfs: [] };
+    }
+    const k = l9.strokeKeyable;
+    const snap = sceneSnapshot();
+    const tt = H / 1000;
+    const curW = l9.strokeWidth !== undefined ? Number(l9.strokeWidth) : 10;
+    k.value = [curW];
+    k.kfs = k.kfs || [];
+    const i = k.kfs.findIndex(x => Math.abs(Number(x.t) - tt) < 0.002);
+    if (i >= 0) k.kfs[i].v = [curW];
+    else k.kfs.push({ t: tt, v: [curW], e: null, easing: null });
+    k.kfs.sort((x, y) => x.t - y.t);
+    pushUndo(snap), V = true;
+    handle9("[EDIT] Keyframe stroke @ " + tt.toFixed(3) + "s");
+    try { val2 && val2.renderAt(H); } catch(e){}
+    omKfRefresh();
+    return;
+  }
+  if ((propName === "shadow" || propName === "shadowRadius") && l9) {
+    if (!l9.shadowKeyable) {
+      const curR = l9.shadowRadius !== undefined ? Number(l9.shadowRadius) : 25;
+      l9.shadowKeyable = { value: [curR], kfs: [] };
+    }
+    const k = l9.shadowKeyable;
+    const snap = sceneSnapshot();
+    const tt = H / 1000;
+    const curR = l9.shadowRadius !== undefined ? Number(l9.shadowRadius) : 25;
+    k.value = [curR];
+    k.kfs = k.kfs || [];
+    const i = k.kfs.findIndex(x => Math.abs(Number(x.t) - tt) < 0.002);
+    if (i >= 0) k.kfs[i].v = [curR];
+    else k.kfs.push({ t: tt, v: [curR], e: null, easing: null });
+    k.kfs.sort((x, y) => x.t - y.t);
+    pushUndo(snap), V = true;
+    handle9("[EDIT] Keyframe shadow @ " + tt.toFixed(3) + "s");
+    try { val2 && val2.renderAt(H); } catch(e){}
+    omKfRefresh();
+    return;
+  }
+  const t = readGlobalT();
+  if (!t) return;
+  const k = omKeyableOf(t, propName);
+  if (!k) return;
+  const snap = sceneSnapshot();
+  const tt = H / 1000;
+  const arr = Array.isArray(k.value) ? k.value.concat() : [Number(k.value) || 0];
+  k.kfs = k.kfs || [];
+  const i = k.kfs.findIndex(x => Math.abs(Number(x.t) - tt) < 0.001);
+  if (i >= 0) k.kfs[i].v = arr;
+  else k.kfs.push({ t: tt, v: arr, e: null, easing: null });
+  k.kfs.sort((x, y) => x.t - y.t);
+  pushUndo(snap), V = true;
+  handle9("[EDIT] Keyframe " + propName + " @ " + (H / 1000).toFixed(3) + "s");
+  try {
+    val2 && val2.renderAt(H);
+  } catch (e) {}
+  omKfRefresh();
+}
+function omKfRemoveAt(propName, optLayer) {
+  if (propName === "gain") {
+    const l = optLayer || (omPropsLayerId != null ? omResolveLayer(omPropsLayerId) : null);
+    const k = l ? l.gain : null;
+    if (!k || !k.kfs || !k.kfs.length) return;
+    const tt = H / 1000;
+    const i = k.kfs.findIndex(x => Math.abs(Number(x.t) - tt) < 0.002);
+    if (i < 0) return handle9("[EDIT] tidak ada keyframe di playhead");
+    const snap = sceneSnapshot();
+    k.kfs.splice(i, 1), pushUndo(snap), V = true;
+    handle9("[EDIT] Keyframe gain dihapus @ " + tt.toFixed(3) + "s");
+    try { val2 && val2.renderAt(H); } catch(e){}
+    omKfRefresh();
+    return;
+  }
+  if (propName === "stroke" || propName === "strokeWidth") {
+    const l = optLayer || (omPropsLayerId != null ? omResolveLayer(omPropsLayerId) : null);
+    const k = l ? l.strokeKeyable : null;
+    if (!k || !k.kfs || !k.kfs.length) return;
+    const tt = H / 1000;
+    const i = k.kfs.findIndex(x => Math.abs(Number(x.t) - tt) < 0.002);
+    if (i < 0) return handle9("[EDIT] tidak ada keyframe di playhead");
+    const snap = sceneSnapshot();
+    k.kfs.splice(i, 1), pushUndo(snap), V = true;
+    handle9("[EDIT] Keyframe stroke dihapus @ " + tt.toFixed(3) + "s");
+    try { val2 && val2.renderAt(H); } catch(e){}
+    omKfRefresh();
+    return;
+  }
+  if (propName === "shadow" || propName === "shadowRadius") {
+    const l = optLayer || (omPropsLayerId != null ? omResolveLayer(omPropsLayerId) : null);
+    const k = l ? l.shadowKeyable : null;
+    if (!k || !k.kfs || !k.kfs.length) return;
+    const tt = H / 1000;
+    const i = k.kfs.findIndex(x => Math.abs(Number(x.t) - tt) < 0.002);
+    if (i < 0) return handle9("[EDIT] tidak ada keyframe di playhead");
+    const snap = sceneSnapshot();
+    k.kfs.splice(i, 1), pushUndo(snap), V = true;
+    handle9("[EDIT] Keyframe shadow dihapus @ " + tt.toFixed(3) + "s");
+    try { val2 && val2.renderAt(H); } catch(e){}
+    omKfRefresh();
+    return;
+  }
+  const t = readGlobalT();
+  if (!t) return;
+  const k = omKeyableOf(t, propName);
+  if (!k || !k.kfs || !k.kfs.length) return;
+  const tt = H / 1000;
+  const i = k.kfs.findIndex(x => Math.abs(Number(x.t) - tt) < 0.001);
+  if (i < 0) return handle9("[EDIT] tidak ada keyframe di playhead");
+  const snap = sceneSnapshot();
+  k.kfs.splice(i, 1), pushUndo(snap), V = true;
+  handle9("[EDIT] Keyframe " + propName + " dihapus @ " + tt.toFixed(3) + "s");
+  try {
+    val2 && val2.renderAt(H);
+  } catch (e) {}
+  omKfRefresh();
+}
+function omKfSetEasing(propName, token) {
+  const t = readGlobalT();
+  if (!t) return;
+  const k = omKeyableOf(t, propName);
+  if (!k || !k.kfs || !k.kfs.length) return;
+  const snap = sceneSnapshot();
+  k.kfs.forEach(f => {
+    f.e = token, f.easing = obj(token);
+  });
+  pushUndo(snap), V = true;
+  handle9("[EDIT] Easing " + propName + " → " + token);
+  try {
+    val2.renderAt(H);
+  } catch (e) {}
+}
+function omOpenCurve(opts) {
+  if (typeof window.omOpenCurveEditor === "function") {
+    window.omOpenCurveEditor(opts);
+    return;
+  }
+  const l = omPropsLayerId != null ? omResolveLayer(omPropsLayerId) : null;
+  if (!l || !l.transform || document.getElementById("om-curve-back")) return;
+  const props = [["loc", "Posisi"], ["rot", "Rotasi"], ["sc", "Skala"], ["op", "Opacity"]];
+  const av = props.filter(([n]) => {
+    const k = omKeyableOf(l.transform, n);
+    return k && k.kfs && k.kfs.length >= 2;
+  });
+  if (!av.length) return handle9("[EDIT] tambah keyframe dulu (tombol ◇ di panel transform)");
+  const curProp = omActProp && av.some(a => a[0] === omActProp) ? omActProp : av[0][0];
+  const back = document.createElement("div");
+  back.id = "om-curve-back";
+  back.style.cssText = "position:fixed;inset:0;z-index:100005;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:14px";
+  back.innerHTML = '<div class="om-dialog" style="max-width:460px"><h2>Curve Editor</h2>' + '<label class="field">Properti<select id="om-curve-prop">' + av.map(([n, lab]) => '<option value="' + n + '">' + lab + "</option>").join("") + '</select></label>' + '<canvas id="om-curve-canvas" width="420" height="150" style="width:100%;background:#0c0e14;border:1px solid var(--line2);border-radius:8px"></canvas>' + '<div class="om-props-sec">Easing preset</div><div class="om-chips" id="om-curve-presets" style="margin-bottom:8px"><button type="button" class="om-chip" data-e="linear">Linear</button><button type="button" class="om-chip" data-e="cubicBezier 0.42 0.0 1.0 1.0">Ease In</button><button type="button" class="om-chip" data-e="cubicBezier 0.0 0.0 0.58 1.0">Ease Out</button><button type="button" class="om-chip" data-e="cubicBezier 0.42 0.0 0.58 1.0">Ease In-Out</button></div>' + '<button class="btn sm" type="button" id="om-curve-delkf" style="margin-right:6px">✕ Hapus KF di playhead</button><button class="btn sm primary" type="button" id="om-curve-close">Tutup</button></div>';
+  document.body.appendChild(back);
+  const sel = back.querySelector("#om-curve-prop");
+  sel.value = curProp;
+  const cv = back.querySelector("#om-curve-canvas"), g = cv.getContext("2d");
+  const dur = () => val && val.totalTime || 10000;
+  const draw = () => {
+    const t = readGlobalT(), k = t && omKeyableOf(t, sel.value);
+    g.clearRect(0, 0, cv.width, cv.height);
+    if (!k || !k.kfs || k.kfs.length < 2) return;
+    const ks = [...k.kfs].sort((a, b) => a.t - b.t);
+    const t0 = ks[0].t, t1 = ks[ks.length - 1].t, span = Math.max(0.001, t1 - t0);
+    let mn = Infinity, mx = -Infinity;
+    ks.forEach(f => f.v.forEach(v => { mn = Math.min(mn, v), mx = Math.max(mx, v); }));
+    if (mx === mn) mx = mn + 1;
+    const X = s => (s - t0) / span * cv.width;
+    const Y = v => cv.height - (v - mn) / (mx - mn) * (cv.height - 12) - 6;
+    // grid
+    g.strokeStyle = "rgba(255,255,255,.06)", g.beginPath();
+    for (let i = 0; i <= 4; i++) { const x = i / 4 * cv.width; g.moveTo(x, 0), g.lineTo(x, cv.height); }
+    g.stroke();
+    g.strokeStyle = "#1fc8ee", g.beginPath();
+    ks.forEach((f, i) => i ? g.lineTo(X(f.t), Y(f.v[0])) : g.moveTo(X(f.t), Y(f.v[0])));
+    g.stroke();
+    // playhead
+    const pt = (H / 1000 - t0) / span * cv.width;
+    g.strokeStyle = "rgba(255,150,80,.9)", g.beginPath(), g.moveTo(pt, 0), g.lineTo(pt, cv.height), g.stroke();
+    // kf points
+    ks.forEach(f => {
+      g.beginPath(), g.arc(X(f.t), Y(f.v[0]), 4, 0, 7), g.fillStyle = "#fff", g.fill();
+    });
+  };
+  sel.addEventListener("change", draw);
+  back.querySelector("#om-curve-presets").addEventListener("click", e => {
+    const b = e.target.closest("button[data-e]");
+    if (!b) return;
+    omKfSetEasing(sel.value, b.dataset.e), draw();
+  });
+  back.querySelector("#om-curve-delkf").addEventListener("click", () => {
+    omKfRemoveAt(sel.value), draw();
+  });
+  back.querySelector("#om-curve-close").addEventListener("click", () => back.remove());
+  back.addEventListener("pointerdown", e => {
+    if (e.target === back) back.remove();
+  });
+  draw();
+}
+// ===== Restyle 1:1 gaya AM (token dari riset piksel screenshot) =====
+(function omAmStyle() {
+  if (document.getElementById("om-am-style")) return;
+  const s = document.createElement("style");
+  s.id = "om-am-style";
+  s.textContent = `
+:root{--bg:#141720;--bg-deep:#0D1016;--bg-alt:#191B27;--panel:#202537;--surface:#1E2239;--card:#272D3D;--card2:#2F354D;--card3:#343851;--line:#2E3446;--line2:#3D4356;--text:#fff;--muted:#848C98;--hint:#9EA1A7;--accent:#00FFA9;--accent-ink:#03231A;--accent-blue:#5D9DCB;--danger:#FF4544;--radius:8px}
+body{background:var(--bg);color:var(--text)}
+dialog, .om-dialog, #om-props, #om-elembar, .tl-ctx, #om-add-menu{background:var(--panel);border-color:var(--line2);color:var(--text)}
+#top{background:var(--panel);border-bottom:1px solid var(--line)}
+#stage{background:var(--bg-deep)}
+.tl-toolbar,#timeline-wrap,#panes,#transport{background:var(--bg-alt)}
+#timeline-ruler{background:#151723}
+#timeline-inner{background:var(--bg-alt)}
+.tl-track{border-color:var(--line)}
+.tl-label{color:#fff}
+.tl-block{border-radius:5px;box-shadow:none}
+#tl-playhead{background:#fff;width:2px}
+.btn.primary{background:var(--accent)!important;color:#03231A!important;border-color:transparent!important}
+.btn:not(.primary):not(.ghost){background:var(--card);border-color:var(--line2);color:var(--text)}
+.btn.ghost{background:var(--card);border-color:var(--line2);color:var(--text)}
+.om-chip.on{background:var(--accent);color:#03231A!important;border-color:transparent!important}
+.om-chip{background:var(--card);border-color:var(--line2);color:var(--text)}
+.card{background:var(--surface);border-color:var(--line2)}
+.status-box{background:var(--card);border-color:var(--line2)}
+input,select,textarea{background:var(--card);border-color:var(--line2);color:var(--text)}
+.om-sw{border-color:var(--line2)}
+.om-sw.on{border-color:#fff;outline:2px solid var(--accent)}
+/* home/landing: tema terang ala AM */
+#om-landing{background:#F6F6F6}
+#om-landing .om-logo{color:#202239;background:none;-webkit-background-clip:text;background-clip:text}
+#om-landing .om-sub{color:#4F5858}
+#om-landing .om-btn.primary{background:#00FFA9!important;color:#03231A!important}
+.om-recent h4{color:#202239}
+.om-recent button{background:#fff;color:#202239;border:1px solid #E3E6EC}
+.om-dialog{background:#EDEEF0;border-color:#DFE2E8;color:#202239}
+.om-dialog h2{color:#202239}
+.om-dialog label{color:#4F5858}
+.om-dialog input,.om-dialog select,.om-dialog textarea{background:#fff;border-color:#D9DDE4;color:#202239}
+.om-dialog .om-chip{background:#fff;color:#202239;border-color:#D9DDE4}
+.om-dialog .om-chip.on{background:#00FFA9;color:#03231A;border-color:transparent}
+.om-dialog .btn.primary{background:#00FFA9!important;color:#03231A!important}
+.om-dialog .om-btn{background:var(--card);color:var(--text)}
+.om-props-sec{color:var(--muted)}
+#om-elembar button:disabled{opacity:.4}`;
+  document.head.appendChild(s);
+})();
+(function omBootGate() {
+  const m = /\/proyek\/([A-Za-z0-9_-]{8,64})/.exec(location.pathname);
+  if (m) {
+    omProjectId = m[1];
+    setTimeout(() => omOpenProject(m[1]), 0);
+    return;
+  }
+  const q = location.search || '';
+  if (/mode=(simple|instant)/.test(q) || /alight=/.test(q) || /proj=/.test(q)) return;
+  // showOmLanding();
 })();
 window.addEventListener("dragenter", a => {
   a.dataTransfer && [...a.dataTransfer.types].includes("Files") && (vn++, document.body.classList.add("dragging"));
@@ -8262,12 +11558,23 @@ function sceneSnapshot() {
 }
 function pushUndo(snap) {
   if (!snap) return;
-  undoStack.push(snap), undoStack.length > 60 && undoStack.shift(), redoStack.length = 0;
+  undoStack.push(snap), undoStack.length > 60 && undoStack.shift(), redoStack.length = 0, omScheduleSave();
 }
 function applySceneSnapshot(s) {
   if (!val || !s) return false;
   for (const k of Object.keys(val)) delete val[k];
   for (const k of Object.keys(s)) val[k] = s[k];
+  if (Te.length) {
+    const map = new Map();
+    omWalkScenes(val, sc => (sc.layers || []).forEach(l => map.set(l.id, l)));
+    Te = Te.map(t => {
+      const l = t.layer && map.get(t.layer.id);
+      return l ? {
+        layer: l
+      } : null;
+    }).filter(Boolean);
+    if (!Te.length) handle18();
+  }
   try {
     val2 && val2.setScene(val);
   } catch {}
@@ -8281,6 +11588,7 @@ function applySceneSnapshot(s) {
   try {
     val2 && val2.renderAt(H);
   } catch {}
+  omScheduleSave();
   return true;
 }
 function findParentArray(layer) {
@@ -8368,6 +11676,8 @@ ui.addEventListener("change", build7), build7(), _a("proyek"), window.addEventLi
     };
   },
   async loadPreset(a, b = null) {
+    const land = document.getElementById("om-landing");
+    if (land) land.remove();
     if (this.stopDefaultLoad(), await this.waitReady(), typeof a == "string") {
       let trim = a.trim();
       if (/\.xml$/i.test(trim) || trim.startsWith("blob:") || trim.startsWith("data:")) {
@@ -8571,6 +11881,405 @@ ui.addEventListener("change", build7), build7(), _a("proyek"), window.addEventLi
     return obj23;
   }
 };
+window.__AM_INTERNAL = {
+  get val() { return val; },
+  get val2() { return val2; },
+  get w() { return val ? val.width : (typeof re !== 'undefined' && re ? re.width : 0); },
+  set w(v) {
+    if (val) {
+      const num = Math.round(v);
+      val.width = num;
+      val.exportWidth = num;
+      if (typeof re !== 'undefined' && re) re.width = num;
+      if (typeof val2 !== 'undefined' && val2 && typeof val2.setResolution === 'function') {
+        val2.setResolution(val.height || 720);
+      }
+    }
+  },
+  get h() { return val ? val.height : (typeof re !== 'undefined' && re ? re.height : 0); },
+  set h(v) {
+    if (val) {
+      const num = Math.round(v);
+      val.height = num;
+      val.exportHeight = num;
+      if (typeof re !== 'undefined' && re) re.height = num;
+      if (typeof val2 !== 'undefined' && val2 && typeof val2.setResolution === 'function') {
+        val2.setResolution(num);
+      }
+    }
+  },
+  get H() { return H; },
+  set H(v) { H = v; },
+  set V(v) { V = v; },
+  get omMulti() { return omMulti; },
+  sceneSnapshot,
+  undoScene,
+  redoScene,
+  pushUndo,
+  applySceneSnapshot,
+  parseHexColor,
+  handle5,
+  omHexFrom,
+  omLayerCur,
+  omPropsRefresh,
+  omSetKeyable,
+  omKfInsert,
+  omKfRemoveAt,
+  omKfSetEasing,
+  omOpenCurve,
+  omKeyableOf,
+  obj,
+  _r,
+  handle9,
+  bind4,
+  findParentArray,
+  omId,
+  omMeta,
+  omParseLayer,
+  omTransformXml,
+  omHandle21InContext,
+  omScheduleSave,
+  selectLayer: l => apply13(l),
+  deselectLayer: () => apply13(null),
+  get isPlaying() { return flag2; },
+  togglePlay: () => handle24(!flag2),
+  play: () => handle24(true),
+  pause: () => handle24(false),
+  seek: (t) => process22(t),
+  splitLayerAt,
+  deleteLayer,
+  duplicateLayer,
+  omAddMediaFile: (file) => omAddMediaFile(file),
+  omAddNull: () => omAddNull(),
+  omAddCamera: () => omAddCamera(),
+  setCameraViewEnabled: (enabled) => {
+    if (val2) {
+      val2.cameraViewEnabled = !!enabled;
+      V = true;
+      if (val2.renderAt) val2.renderAt(H);
+    }
+  },
+  omAddGroup: () => omAddGroup(),
+  resolveHierarchy: (sc) => get2(sc || val),
+  setLayerParent: (layer, parentId) => {
+    if (!layer) return;
+    const snap = sceneSnapshot ? sceneSnapshot() : null;
+    layer.parentId = parentId || '';
+    if (val) get2(val);
+    if (snap && pushUndo) pushUndo(snap);
+    V = true;
+    if (val2 && val2.renderAt) val2.renderAt(H);
+    if (typeof omScheduleSave === "function") omScheduleSave();
+  },
+  omCopyLayers: (layers) => omCopyLayers(layers),
+  omPasteLayers: () => omPasteLayers(),
+  omCopyStyle: (layer) => omCopyStyle(layer),
+  omPasteStyle: (options) => omPasteStyle(options),
+  omMultiSelectAll: () => omMultiSelectAll(),
+  omTrimSide,
+  omSetLayerSpeed,
+  omRetime,
+  omToggleFreezeFrame,
+  omToggleReverse,
+  omSetSpeedCurve,
+  omMuteToggle,
+  omOpenTextDlg,
+  get bookmarks() { return be; },
+  addBookmark: (t) => { be.push(t); get12(); V = true; if (val) val.bookmarks = be.slice(); bind3(); },
+  removeBookmark: (t) => { be = be.filter(b => Math.abs(b - t) > 100); get12(); V = true; if (val) val.bookmarks = be.slice(); bind3(); },
+  toggleBookmark: () => handle17(),
+  jumpPrevKeyframeOrBookmark: (l) => jumpPrevKeyframeOrBookmark(l),
+  jumpNextKeyframeOrBookmark: (l) => jumpNextKeyframeOrBookmark(l),
+  omMultiGroup: (mode) => omMultiGroup(mode),
+  omUngroup: (l) => omUngroup(l),
+  omEnterGroup: (l) => omEnterGroup(l),
+  omExitGroup: () => omExitGroup(),
+  omMultiToggle: (id) => omMultiToggle(id),
+  omMultiClear: () => omMultiClear(),
+  omMultiIds: () => omMultiIds(),
+  omMultiDelete: () => omMultiDelete(),
+  omMultiAlignScreen: (mode) => omMultiAlignScreen(mode),
+  omMultiAlignTimeline: (mode) => omMultiAlignTimeline(mode),
+  omMultiTrimLeft: () => omTrimSide("l"),
+  omMultiTrimRight: () => omTrimSide("r"),
+  omMultiSplit: () => splitLayerAt(),
+  isGroup: (l) => get13(l),
+  get Te() { return Te; },
+  stepFrame: (delta) => {
+    let fps = val ? val.fps || 30 : 30;
+    process22(Math.max(0, Math.min(val ? val.totalTime : 0, H + (delta * 1000 / fps))));
+  },
+  buildTimeline: () => { try { build13(); } catch(e){} },
+  fitCanvas: () => { try { getPos(); } catch(e){} },
+  refreshScene: () => { try { handle21(); } catch(e){} },
+  omSerializeScene: () => { try { return omSerializeScene(); } catch(e){ return ''; } },
+  omOpenProject: (id) => omOpenProject(id),
+  omProjectXml: (cfg) => omProjectXml(cfg),
+  omNewId: () => omNewId(),
+  omSaveProject: () => omSaveProject(),
+  openEffectPicker: (layer) => get14(layer, 0, 0),
+  addAudioLayer: (file, optName, optDurMs) => {
+    if (!file) return;
+    const snap = sceneSnapshot ? sceneSnapshot() : null;
+    const audioId = "audio_" + Date.now().toString(36);
+    let audioUrl = "";
+    let audioName = "";
+    if (typeof file === "string") {
+      audioUrl = file;
+      audioName = optName || file.split("/").pop().replace(/\.[^/.]+$/, "") || "Audio";
+    } else if (file && file.url) {
+      audioUrl = file.url;
+      audioName = file.name || optName || "Audio";
+    } else if (file instanceof Blob || file instanceof File) {
+      audioUrl = URL.createObjectURL(file);
+      audioName = file.name || optName || "Audio";
+    } else {
+      return;
+    }
+    ye.set(audioName, audioUrl);
+    ye.set(audioUrl, audioUrl);
+    Me.push({ name: audioName, src: audioUrl });
+    fe.set(audioId, audioName);
+    const tempAudio = new Audio(audioUrl);
+    const commitLayer = (durMs) => {
+      const newLayer = {
+        id: audioId,
+        tag: "audio",
+        label: audioName.replace(/\.[^/.]+$/, "") || "Audio",
+        src: audioUrl,
+        startTime: H || 0,
+        endTime: (H || 0) + (durMs || 5000),
+        inTime: 0,
+        outTime: durMs || 5000,
+        speed: 1,
+        gain: { value: [1], kfs: [] },
+        transform: {
+          location: { value: [0, 0, 0], kfs: [] },
+          scale: { value: [1, 1], kfs: [] },
+          rotation: { value: [0], kfs: [] },
+          opacity: { value: [1], kfs: [] }
+        },
+        effects: []
+      };
+      if (val && val.layers) {
+        val.layers.push(newLayer);
+        if (snap && pushUndo) pushUndo(snap);
+        V = true;
+        if (val.totalTime < newLayer.endTime) {
+          val.totalTime = newLayer.endTime;
+        }
+        try { render8(); } catch(e){}
+        try { handle12({ force: true }); } catch(e){}
+        if (bind4) bind4();
+        if (apply13) apply13(newLayer);
+        if (val2 && val2.renderAt) val2.renderAt(H);
+        decodeAudioPeaks(newLayer, audioUrl);
+        handle9("[AUDIO] Layer audio ditambahkan: " + audioName);
+      }
+    };
+    if (optDurMs && optDurMs > 0) {
+      commitLayer(optDurMs);
+    } else {
+      tempAudio.addEventListener("loadedmetadata", () => {
+        const durSec = tempAudio.duration && !isNaN(tempAudio.duration) ? tempAudio.duration : 5;
+        commitLayer(Math.round(durSec * 1000));
+      });
+      tempAudio.addEventListener("error", () => {
+        commitLayer(5000);
+      });
+    }
+  },
+  omSetAudioGain: (layer, gainVal) => {
+    if (!layer) return;
+    const g = Math.max(0, Number(gainVal) || 0);
+    if (!layer.gain) layer.gain = { value: [g], kfs: [] };
+    else if (Array.isArray(layer.gain.value)) layer.gain.value[0] = g;
+    else layer.gain = { value: [g], kfs: [] };
+    layer.userTouched = true;
+    for (let tr of ee) {
+      if (tr.layer === layer || tr.id === layer.id) {
+        if (tr.gainNode) {
+          try {
+            if (window.__AM_AUDIO_CTX && window.__AM_AUDIO_CTX.state === "suspended") {
+              window.__AM_AUDIO_CTX.resume();
+            }
+            tr.gainNode.gain.value = g;
+            tr.el.volume = 1;
+          } catch(e) {
+            tr.el.volume = Math.max(0, Math.min(1, g));
+          }
+        } else {
+          tr.el.volume = Math.max(0, Math.min(1, g));
+        }
+      }
+    }
+    V = true;
+  },
+  replaceMediaForLayer: (layer, file) => replaceMediaForLayer(layer, file),
+  get omProjectId() { return omProjectId; },
+  set omProjectId(v) { omProjectId = v; },
+  startVideoExport: async (opts = {}) => {
+    if (opts.resolution) {
+      const el = document.getElementById("expRes");
+      if (el) el.value = String(opts.resolution);
+    }
+    if (opts.fps) {
+      const el = document.getElementById("expFps");
+      if (el) el.value = String(opts.fps);
+    }
+    if (opts.bitrate != null) {
+      const el = document.getElementById("expBitrate");
+      if (el) el.value = String(opts.bitrate);
+    }
+    if (opts.codec) {
+      const el = document.getElementById("expCodec");
+      if (el) el.value = String(opts.codec);
+    }
+    return compute20();
+  },
+  cancelVideoExport: () => {
+    De = true;
+    const ea = document.getElementById("expCancel");
+    if (ea) ea.click();
+  },
+  exportCurrentFrameBlob: async () => {
+    if (!val2) return null;
+    val2.renderAt(H);
+    const canvas = re || document.getElementById("view");
+    if (!canvas) return null;
+    return new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+  },
+  exportImageSequenceZip: async (onProg, isCanc) => {
+    if (!val2 || !val) return null;
+    const total = val.totalTime || 0;
+    const fps = apply20() || 30;
+    const stepMs = 1000 / fps;
+    const framesCount = Math.max(1, Math.round(total / stepMs));
+    const entries = [];
+    const origH = H;
+    const cancelFn = isCanc || (() => De);
+    try {
+      val2.setMediaMode("export");
+      for (let i = 0; i < framesCount; i++) {
+        if (cancelFn()) break;
+        const curMs = Math.min(total, i * stepMs);
+        val2.renderAt(curMs);
+        const canvas = re || document.getElementById("view");
+        const blob = await new Promise(r => canvas.toBlob(r, "image/png"));
+        const buf = new Uint8Array(await blob.arrayBuffer());
+        const name = "frame_" + String(i + 1).padStart(5, "0") + ".png";
+        entries.push({ name, data: buf });
+        if (onProg) onProg({ frame: i + 1, total: framesCount, pct: Math.round(((i + 1) / framesCount) * 100) });
+      }
+    } finally {
+      val2.setMediaMode("preview");
+      val2.renderAt(origH);
+    }
+    if (!entries.length || cancelFn()) return null;
+    return createZipFromEntries(entries);
+  },
+  parseHexColor,
+  omEffectObjFromXml,
+  omAddFxToLayer,
+  omFxWriteChannel,
+  omFxParamDef,
+  loadEffect: async (id) => {
+    if (val2 && typeof val2.loadEffect === "function") return await val2.loadEffect(id);
+    return false;
+  },
+  getLastExport: () => window.__AM_INTERNAL._lastExport || null
+};
+function createZipFromEntries(entries) {
+  let totalSize = 0;
+  for (const e of entries) {
+    totalSize += 30 + e.name.length + e.data.length + 46 + e.name.length;
+  }
+  totalSize += 22;
+  const buf = new Uint8Array(totalSize);
+  const view = new DataView(buf.buffer);
+  let offset = 0;
+  const cdOffsets = [];
+
+  const crcTable = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let k = 0; k < 8; k++) c = ((c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1));
+    crcTable[i] = c;
+  }
+  function calcCrc(r) {
+    let c = -1;
+    for (let i = 0; i < r.length; i++) c = (c >>> 8) ^ crcTable[(c ^ r[i]) & 0xFF];
+    return (c ^ -1) >>> 0;
+  }
+
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i];
+    const nameBytes = new TextEncoder().encode(e.name);
+    const crc = calcCrc(e.data);
+    cdOffsets.push({ offset, nameBytes, size: e.data.length, crc });
+
+    view.setUint32(offset, 0x04034b50, true);
+    view.setUint16(offset + 4, 20, true);
+    view.setUint16(offset + 6, 0, true);
+    view.setUint16(offset + 8, 0, true);
+    view.setUint16(offset + 10, 0, true);
+    view.setUint16(offset + 12, 0, true);
+    view.setUint32(offset + 14, crc, true);
+    view.setUint32(offset + 18, e.data.length, true);
+    view.setUint32(offset + 22, e.data.length, true);
+    view.setUint16(offset + 26, nameBytes.length, true);
+    view.setUint16(offset + 28, 0, true);
+    buf.set(nameBytes, offset + 30);
+    offset += 30 + nameBytes.length;
+    buf.set(e.data, offset);
+    offset += e.data.length;
+  }
+
+  const cdStart = offset;
+  for (let i = 0; i < cdOffsets.length; i++) {
+    const item = cdOffsets[i];
+    view.setUint32(offset, 0x02014b50, true);
+    view.setUint16(offset + 4, 20, true);
+    view.setUint16(offset + 6, 20, true);
+    view.setUint16(offset + 8, 0, true);
+    view.setUint16(offset + 10, 0, true);
+    view.setUint16(offset + 12, 0, true);
+    view.setUint16(offset + 14, 0, true);
+    view.setUint32(offset + 16, item.crc, true);
+    view.setUint32(offset + 20, item.size, true);
+    view.setUint32(offset + 24, item.size, true);
+    view.setUint16(offset + 28, item.nameBytes.length, true);
+    view.setUint16(offset + 30, 0, true);
+    view.setUint16(offset + 32, 0, true);
+    view.setUint16(offset + 34, 0, true);
+    view.setUint16(offset + 36, 0, true);
+    view.setUint32(offset + 38, 0, true);
+    view.setUint32(offset + 42, item.offset, true);
+    buf.set(item.nameBytes, offset + 46);
+    offset += 46 + item.nameBytes.length;
+  }
+
+  const cdSize = offset - cdStart;
+  view.setUint32(offset, 0x06054b50, true);
+  view.setUint16(offset + 4, 0, true);
+  view.setUint16(offset + 6, 0, true);
+  view.setUint16(offset + 8, cdOffsets.length, true);
+  view.setUint16(offset + 10, cdOffsets.length, true);
+  view.setUint32(offset + 12, cdSize, true);
+  view.setUint32(offset + 16, cdStart, true);
+  view.setUint16(offset + 20, 0, true);
+  offset += 22;
+
+  return new Blob([buf.subarray(0, offset)], { type: "application/zip" });
+}
+try {
+  const origRenderAt = Lt.prototype.renderAt;
+  Lt.prototype.renderAt = function() {
+    const r = origRenderAt.apply(this, arguments);
+    try { if (typeof window.omOnRender === "function") window.omOnRender(arguments[0]); } catch (e) {}
+    return r;
+  };
+} catch (e) {}
 var ed = handle9;
 handle9 = function (a) {
   if (ed(a), window.AM && Array.isArray(window.AM.$e)) {
@@ -8843,3 +12552,685 @@ Tn && updateClock2(), get19().catch(a => {
     bootErrorText = document.getElementById("bootErrorText");
   bootError && bootErrorText && (bootErrorText.textContent = '\x0a' + (a.stack || a.message || String(a)), bootError.style.display = "block");
 });
+// ===== P0: Top bar AM (undo/redo/⋯/judul tap-rename) + Import dialog + add-btn FAB + grid/guides =====
+function omInitTopbar() {
+  const style = document.getElementById("om-am-style") || document.getElementById("om-feature-style") || document.createElement("style");
+  if (!style.parentNode) document.head.appendChild(style);
+  style.textContent += `
+#om-top {position:relative}
+#omTopUndo,#omTopRedo{border-radius:6px;padding:5px 7px}
+#omTopMore{border-radius:6px;padding:5px 10px}
+#omTopMenu{position:fixed;z-index:901;min-width:210px;background:var(--panel);border:1px solid var(--line2);border-radius:10px;padding:6px;display:none;flex-direction:column;gap:2px;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+#omTopMenu.on{display:flex}
+#omTopMenu button{display:flex;align-items:center;gap:8px;background:none;border:none;color:var(--text);padding:8px 10px;border-radius:6px;text-align:left;font-size:13px;cursor:pointer}
+#omTopMenu button:hover{background:var(--card)}
+#omTopMenu .om-top-sep{height:1px;background:var(--line2);margin:4px 4px}
+#omTopMenu .om-mn-chk{width:16px;text-align:center;color:var(--accent)}
+#om-add{position:fixed;right:18px;bottom:26px;z-index:900;padding:12px 20px;border-radius:14px;background:var(--accent);color:#03231A!important;border:none;font-weight:700;font-size:14px;box-shadow:0 6px 18px rgba(0,255,169,.25);transition:transform .1s}
+#om-add:hover{transform:translateY(-1px)}
+#omGridOverlay{position:absolute;inset:0;z-index:4;pointer-events:none;display:none;background-image:linear-gradient(rgba(0,255,169,.14) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,169,.14) 1px,transparent 1px);background-size:18px 18px}
+#omGridOverlay.on{display:block}
+#omGuideOverlay{position:absolute;inset:0;z-index:4;pointer-events:none;display:none}
+#omGuideOverlay.on{display:block}
+#omGuideOverlay i{position:absolute;background:var(--accent-blue);opacity:.7}
+#omTopTitleBtn{background:none;border:none;color:#fff;font:inherit;font-size:14px;font-weight:600;cursor:pointer;padding:4px 8px;border-radius:6px}
+#omTopTitleBtn:hover{background:var(--card)}
+#omTopTitleInput{background:var(--card);border:1px solid var(--accent);color:var(--text);border-radius:6px;padding:4px 8px;font-size:14px}
+`;
+  const actions = document.querySelector(".top-actions");
+  if (!actions || document.getElementById("omTopUndo")) return;
+  const mk = (id, html, title, fn) => {
+    const b = document.createElement("button");
+    b.id = id, b.type = "button", b.className = "btn ghost icon", b.title = title, b.innerHTML = html;
+    b.addEventListener("click", fn);
+    return b;
+  };
+  const undo = mk("omTopUndo", '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.5 15a9 9 0 1 0 2-9.5L1 10"/></svg>', "Batalkan (Ctrl+Z)", () => undoScene());
+  const redo = mk("omTopRedo", '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.5 15a9 9 0 1 1-2-9.5L23 10"/></svg>', "Ulangi (Ctrl+Y)", () => redoScene());
+  const more = mk("omTopMore", "⋯", "Lainnya", e => {
+    e.stopPropagation();
+    const m = document.getElementById("omTopMenu");
+    if (!m) return;
+    m.classList.toggle("on");
+    const r = more.getBoundingClientRect();
+    m.style.top = r.bottom + 8 + "px";
+    m.style.left = Math.max(8, r.right - 210) + "px";
+  });
+  actions.insertBefore(more, actions.querySelector("#openSettings"));
+  actions.insertBefore(redo, more);
+  actions.insertBefore(undo, redo);
+  // judul proyek: tap = rename
+  const sTitle = document.getElementById("sTitle");
+  if (sTitle && !document.getElementById("omTopTitleBtn")) {
+    const b = document.createElement("button");
+    b.id = "omTopTitleBtn", b.type = "button", b.textContent = sTitle.textContent || "Proyek Baru";
+    sTitle.replaceWith(b);
+    const commit = () => {
+      const inp = document.getElementById("omTopTitleInput");
+      const nm = (inp && inp.value.trim()) || val && val.title || "Proyek Baru";
+      if (val) val.title = nm;
+      document.getElementById("omTopTitleBtn").textContent = nm;
+      document.getElementById("omTopTitleBtn").style.display = "";
+      window.__omTitleBtn = nm;
+      omScheduleSave();
+      handle9("[PROYEK] judul: " + nm);
+    };
+    b.addEventListener("click", () => {
+      const cur = b.textContent;
+      b.style.display = "none";
+      const inp = document.createElement("input");
+      inp.id = "omTopTitleInput", inp.type = "text", inp.value = cur, inp.maxLength = 60;
+      b.parentNode.insertBefore(inp, b);
+      inp.focus();
+      inp.select();
+      const done = () => {
+        commit();
+        inp.remove();
+      };
+      inp.addEventListener("keydown", ev => {
+        if (ev.key === "Enter") done();
+        if (ev.key === "Escape") {
+          b.style.display = "";
+          inp.remove();
+        }
+      });
+      inp.addEventListener("blur", done);
+    });
+  }
+  // menu dropdown
+  const menu = document.createElement("div");
+  menu.id = "omTopMenu";
+  menu.innerHTML =
+    '<button data-act="import"><span>Impor…</span></button>' +
+    '<button data-act="grid"><span class="om-mn-chk">ᗄ</span>Grid</button>' +
+    '<button data-act="guide"><span class="om-mn-chk">ᗄ</span>Panduan</button>' +
+    '<div class="om-top-sep"></div>' +
+    '<button data-act="save">Simpan sekarang</button>' +
+    '<button data-act="settings">Setelan</button>' +
+    '<button data-act="home">Ke beranda</button>';
+  document.body.appendChild(menu);
+  menu.querySelectorAll("button[data-act]").forEach(b => b.addEventListener("click", () => {
+    menu.classList.remove("on");
+    const act = b.dataset.act;
+    if (act === "import") return omOpenImportDlg();
+    if (act === "grid") return omToggleStageOverlay("omGridOverlay");
+    if (act === "guide") return omToggleStageOverlay("omGuideOverlay");
+    if (act === "save") return omSaveProject();
+    if (act === "settings") return document.getElementById("openSettings").click();
+    if (act === "home") location.href = "/";
+  }));
+  // chek nonaktif awal
+  menu.querySelector('[data-act="grid"] .om-mn-chk').style.opacity = "0";
+  menu.querySelector('[data-act="guide"] .om-mn-chk').style.opacity = "0";
+  document.addEventListener("click", e => {
+    const m = document.getElementById("omTopMenu");
+    if (m && m.classList.contains("on") && !e.target.closest("#omTopMenu") && !e.target.closest("#omTopMore")) m.classList.remove("on");
+  });
+  window.addEventListener("keydown", e => {
+    const m = document.getElementById("omTopMenu");
+    if (m && e.key === "Escape") m.classList.remove("on");
+  });
+  // FAB add menu: pasang overlay grid/guides di stage
+  const st = document.getElementById("stage");
+  if (st && !document.getElementById("omGridOverlay")) {
+    const g = document.createElement("div"), gd = document.createElement("div");
+    g.id = "omGridOverlay", gd.id = "omGuideOverlay";
+    gd.innerHTML = '<i style="left:33.33%;top:0;bottom:0;width:1px"></i><i style="left:66.66%;top:0;bottom:0;width:1px"></i><i style="top:33.33%;left:0;right:0;height:1px"></i><i style="top:66.66%;left:0;right:0;height:1px"></i>';
+    st.appendChild(g), st.appendChild(gd);
+  }
+  // label total layer sudah ada; perbarui judul kalau setting panel ganti nama
+  const stObs = new MutationObserver(() => {
+    if (!val || !document.getElementById("omTopTitleBtn")) return;
+    const s = val.title || "Proyek Baru";
+    const b = document.getElementById("omTopTitleBtn");
+    if (b.textContent !== s && !window.__omTitleEdit) b.textContent = s;
+  });
+  stObs.observe(document.querySelector("#sTop") || document.body, { subtree: true, childList: true, characterData: true });
+}
+function omToggleStageOverlay(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const on = !el.classList.contains("on");
+  el.classList.toggle("on", on);
+  const term = id === "omGridOverlay" ? "Grid" : "Panduan";
+  handle9("[VIEW] " + term + (on ? " tampil" : " sembunyi"));
+  const btn = document.querySelector('#omTopMenu button[data-act="' + (id === "omGridOverlay" ? "grid" : "guide") + '"] .om-mn-chk');
+  btn && (btn.style.opacity = on ? "1" : "0");
+}
+function omOpenImportDlg() {
+  if (document.getElementById("om-import-back")) return;
+  const back = document.createElement("div");
+  back.id = "om-import-back";
+  back.style.cssText = "position:fixed;inset:0;z-index:100006;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:14px";
+  back.innerHTML = '<div class="om-dialog" style="max-width:440px;width:100%"><h2>Impor</h2>' +
+    '<div class="om-props-sec">Dari file</div>' +
+    '<button class="btn" type="button" id="om-imp-file" style="width:100%;justify-content:center">Pilih file XML (.xml / .xml2)</button>' +
+    '<div class="om-props-sec">Link Alight Motion</div>' +
+    '<div style="display:flex;gap:6px"><input id="om-imp-am" type="url" placeholder="https://alight.link/..." style="flex:1"><button class="btn" type="button" id="om-imp-am-go">Buka</button></div>' +
+    '<div class="om-props-sec">Link Google Drive</div>' +
+    '<div style="display:flex;gap:6px"><input id="om-imp-drive" type="url" placeholder="link berbagi Drive (file XML)" style="flex:1"><button class="btn" type="button" id="om-imp-drive-go">Ambil</button></div>' +
+    '<div class="om-props-sec">Mulai ulang</div>' +
+    '<button class="btn" type="button" id="om-imp-reset" style="width:100%;justify-content:center">Kembali ke preset contoh</button>' +
+    '<div style="margin-top:14px;text-align:right"><button class="btn primary" type="button" id="om-imp-close">Tutup</button></div></div>';
+  document.body.appendChild(back);
+  back.addEventListener("click", e => { if (e.target === back) back.remove(); });
+  back.querySelector("#om-imp-close").addEventListener("click", () => back.remove());
+  const fi = document.createElement("input");
+  fi.type = "file", fi.accept = ".xml,.xml2,text/xml,application/xml", fi.style.display = "none";
+  document.body.appendChild(fi);
+  back.querySelector("#om-imp-file").addEventListener("click", () => fi.click());
+  fi.addEventListener("change", () => {
+    const fs = [...fi.files];
+    if (fs.length && apply18) apply18(fs).catch(e6 => handle9("[IMPORT] " + e6.message)).then(() => {
+      if (document.getElementById("om-import-back")) document.getElementById("om-import-back").remove();
+    });
+    fi.remove();
+  });
+  back.querySelector("#om-imp-am-go").addEventListener("click", () => {
+    const v = back.querySelector("#om-imp-am").value.trim();
+    if (!v) return;
+    if (xa) xa.value = v;
+    (apply19 ? apply19() : null);
+  });
+  back.querySelector("#om-imp-drive-go").addEventListener("click", () => {
+    const v = back.querySelector("#om-imp-drive").value.trim();
+    if (!v) return;
+    if (Do) Do.value = v;
+    (get18 ? get18() : null);
+  });
+  back.querySelector("#om-imp-reset").addEventListener("click", () => {
+    if (typeof process20 == "function") process20();
+  });
+}
+omInitTopbar();
+
+// ===== P0: Multi-select (tahan ikon EYE) → toolbar Grup / Hapus =====
+var omMulti = new Set(),
+  omMultiTimer = null,
+  omMultiTrack = null;
+var omMultiSuppress = 0;
+// dbg => ({ ids: [...omMulti], suppress: omMultiSuppress - Date.now(), fireAt: window.__fireAt || -1, clickAt: window.__clickAt || -1, supVal: window.__supVal || -1, log: (//log||[]).slice(-30) });
+function omMultiRefreshStyles() {
+  const st = document.getElementById("om-am-style") || document.getElementById("om-feature-style");
+  if (!st) return;
+  if (st.textContent.indexOf("#omMultiBar") < 0) st.textContent += `
+#omMultiBar{position:fixed;top:52px;left:50%;transform:translateX(-50%);z-index:902;display:flex;gap:8px;background:var(--panel);border:1px solid var(--line2);border-radius:12px;padding:8px 10px;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+#omMultiBar button{background:var(--card);border:1px solid var(--line2);color:var(--text);border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer}
+#omMultiBar button:hover{background:var(--card2)}
+#omMultiBar .primary{background:var(--accent)!important;color:#03231A!important;border-color:transparent!important}
+.tl-label.om-multi{outline:2px solid var(--accent);border-radius:6px;background:rgba(0,255,169,.08)}
+.tl-eye.om-multi{color:var(--accent)}
+.tl-block.om-multi{outline:1px solid var(--accent);box-shadow:0 0 0 1px var(--accent)}
+`;
+}
+function omMultiTc(id) {
+  const rows = [...document.querySelectorAll(".tl-label")].concat([...document.querySelectorAll(".tl-block")]);
+  rows.forEach(r => {
+    if (r.dataset && r.dataset.key === id) r.classList.toggle("om-multi", omMulti.has(id));
+  });
+  const eyes = [...document.querySelectorAll(".tl-eye")].forEach(ey => {
+    const lb = ey.closest(".tl-label");
+    if (lb && lb.dataset && lb.dataset.key === id) ey.classList.toggle("om-multi", omMulti.has(id));
+  });
+}
+function omMultiRefresh() {
+  omMultiRefreshStyles();
+  let bar = document.getElementById("omMultiBar");
+  const isMobileUi = !!document.getElementById("am-mobile-root");
+  if (omMulti.size && !isMobileUi) {
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.id = "omMultiBar";
+      bar.innerHTML = '<button type="button" class="primary" id="omMGroup">Grup</button><button type="button" id="omMDelete">Hapus</button><button type="button" id="omMClear">Batal</button>';
+      document.body.appendChild(bar);
+      bar.querySelector("#omMGroup").addEventListener("click", omMultiGroup);
+      bar.querySelector("#omMDelete").addEventListener("click", omMultiDelete);
+      bar.querySelector("#omMClear").addEventListener("click", () => omMultiClear());
+    }
+  } else if (bar) {
+    bar.remove();
+    bar = null;
+  }
+  document.body.classList.toggle("om-in-multiselect", omMulti.size > 0);
+  document.querySelectorAll(".tl-label, .tl-block, .tl-eye").forEach(el => {
+    const id = el.closest && el.closest(".tl-label") ? (el.closest(".tl-label").dataset && el.closest(".tl-label").dataset.key) : (el.dataset && el.dataset.key);
+    if (el.classList.contains("tl-label") || el.classList.contains("tl-block")) el.classList.toggle("om-multi", !!(id && omMulti.has(id)));
+    else if (el.classList.contains("tl-eye") && id) el.classList.toggle("om-multi", omMulti.has(id));
+  });
+  if (typeof window.omOnMultiSelectChanged === "function") window.omOnMultiSelectChanged([...omMulti]);
+}
+function omMultiToggle(id) {
+  if (!id) return;
+  omMulti.has(id) ? omMulti.delete(id) : omMulti.add(id);
+  omMultiRefresh();
+}
+function omMultiClear() {
+  omMulti.clear(), omMultiRefresh();
+}
+function omMultiIds() {
+  return [...omMulti];
+}
+function omMultiGroup(mode) {
+  if (!val) return omMultiClear();
+  const ids = omMultiIds();
+  const layers = ids.map(id => omResolveLayer(id)).filter(Boolean);
+  if (!layers.length) return omMultiClear();
+  const m = omMeta();
+  const parents = new Set(layers.map(l => findParentArray(l)));
+  if (parents.size > 1) {
+    handle9("[GRUP] pilih layer dari tempat yang sama dulu");
+    return;
+  }
+  const par = parents.values().next().value;
+  if (!par) return omMultiClear();
+  const snap = sceneSnapshot();
+  const minStart = Math.min(...layers.map(l => l.startTime || 0));
+  const maxEnd = Math.max(...layers.map(l => l.endTime != null ? l.endTime : m.total));
+
+  let g = null;
+  const xmls = layers.map(l => l.sourceXml || "").filter(Boolean);
+  if (xmls.length === layers.length) {
+    const inner = '<scene title="Grup" width="' + m.w + '" height="' + m.h + '" exportWidth="' + m.w + '" exportHeight="' + m.h + '" precompose="dynamicResolution" bgcolor="#ff000000" totalTime="' + (maxEnd - minStart) + '" fps="' + m.fps + '">' + xmls.join('') + '</scene>';
+    const gXml = '<embedScene id="' + omId() + '" label="Grup" startTime="' + minStart + '" endTime="' + maxEnd + '">' + inner + omTransformXml(Math.round(m.w / 2), Math.round(m.h / 2), 1) + '</embedScene>';
+    g = omParseLayer(gXml);
+  }
+  if (!g) {
+    const groupId = "group_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6);
+    g = {
+      id: groupId,
+      tag: "group",
+      label: "Grup",
+      startTime: minStart,
+      endTime: maxEnd,
+      inTime: 0,
+      outTime: maxEnd - minStart,
+      transform: {
+        location: { value: [m.w / 2, m.h / 2, 0], kfs: [] },
+        scale: { value: [1, 1], kfs: [] },
+        rotation: { value: [0], kfs: [] },
+        opacity: { value: [1], kfs: [] }
+      },
+      scene: {
+        title: "Grup",
+        width: m.w,
+        height: m.h,
+        totalTime: maxEnd - minStart,
+        fps: m.fps,
+        layers: layers.map(l => {
+          const cl = cloneLayerSafe(l);
+          cl.startTime = Math.max(0, (cl.startTime || 0) - minStart);
+          if (cl.endTime != null) cl.endTime = Math.max(0, cl.endTime - minStart);
+          return cl;
+        })
+      },
+      effects: []
+    };
+  }
+  if (mode === "mask") {
+    g.mask = true;
+    g.label = "Masking Grup";
+    if (g.scene && g.scene.layers && g.scene.layers.length > 0) {
+      g.scene.layers[0].mask = true;
+      g.scene.layers[0].maskType = "alpha";
+    }
+  } else if (mode === "exclude") {
+    g.blendMode = "exclude";
+    g.label = "Exclude Grup";
+  }
+  const firstIndex = par.indexOf(layers[0]);
+  layers.forEach(l => {
+    const p = findParentArray(l);
+    if (p) {
+      const idx = p.indexOf(l);
+      if (idx >= 0) p.splice(idx, 1);
+    }
+  });
+  if (firstIndex >= 0) par.splice(firstIndex, 0, g);
+  else par.push(g);
+
+  pushUndo(snap), V = true, omMulti.clear();
+  handle9("[GRUP] " + layers.length + " layer digabung jadi \"" + g.label + "\"");
+  omMultiRefresh();
+  bind4(), val2 && val2.renderAt(H);
+  apply13(g);
+}
+function omMultiAlignScreen(type) {
+  if (!val) return;
+  const ids = omMulti.size ? omMultiIds() : [];
+  const layers = ids.length ? ids.map(omResolveLayer).filter(Boolean) : [omLayerCur()].filter(Boolean);
+  if (!layers.length) return handle9("[ALIGN] Pilih layer terlebih dahulu");
+
+  const m = omMeta();
+  const snap = sceneSnapshot();
+
+  function getBounds(layer) {
+    let w = 100, h = 100;
+    try {
+      if (val2 && typeof val2.se === "function") {
+        const se2 = val2.se(layer, layer.N || val);
+        const fe2 = typeof val2.fe === "function" ? val2.fe(layer, se2) : se2;
+        if (fe2 && fe2[0] > 0 && fe2[1] > 0) {
+          w = fe2[0];
+          h = fe2[1];
+        }
+      }
+    } catch {}
+    if ((!w || !h || (w === 100 && h === 100)) && layer.size) {
+      if (Array.isArray(layer.size.value)) {
+        w = layer.size.value[0] || w;
+        h = layer.size.value[1] || h;
+      } else if (Array.isArray(layer.size)) {
+        w = layer.size[0] || w;
+        h = layer.size[1] || h;
+      }
+    }
+    let cx = m.w / 2, cy = m.h / 2;
+    if (layer.transform && layer.transform.location) {
+      const loc = layer.transform.location;
+      if (Array.isArray(loc.value)) {
+        cx = loc.value[0];
+        cy = loc.value[1];
+      } else if (Array.isArray(loc)) {
+        cx = loc[0];
+        cy = loc[1];
+      }
+    }
+    return {
+      layer,
+      w,
+      h,
+      cx,
+      cy,
+      left: cx - w / 2,
+      right: cx + w / 2,
+      top: cy - h / 2,
+      bottom: cy + h / 2
+    };
+  }
+
+  function translateLayer(layer, dx, dy) {
+    if (Math.abs(dx) < 0.001 && Math.abs(dy) < 0.001) return;
+    layer.transform = layer.transform || {};
+    if (!layer.transform.location) {
+      layer.transform.location = { value: [Math.round(m.w / 2 + dx), Math.round(m.h / 2 + dy), 0], kfs: [] };
+      return;
+    }
+    const loc = layer.transform.location;
+    if (Array.isArray(loc.value)) {
+      loc.value[0] = Math.round(loc.value[0] + dx);
+      loc.value[1] = Math.round(loc.value[1] + dy);
+      if (Array.isArray(loc.kfs)) {
+        loc.kfs.forEach(kf => {
+          if (Array.isArray(kf.value)) {
+            kf.value[0] = Math.round(kf.value[0] + dx);
+            kf.value[1] = Math.round(kf.value[1] + dy);
+          }
+        });
+      }
+    } else if (Array.isArray(loc)) {
+      loc[0] = Math.round(loc[0] + dx);
+      loc[1] = Math.round(loc[1] + dy);
+    }
+  }
+
+  const items = layers.map(getBounds);
+
+  if (type === "left") {
+    if (layers.length === 1) {
+      translateLayer(layers[0], -items[0].left, 0);
+    } else {
+      const minLeft = Math.min(...items.map(it => it.left));
+      items.forEach(it => translateLayer(it.layer, minLeft - it.left, 0));
+    }
+    handle9("[ALIGN] Rata Kiri Layar");
+  } else if (type === "center-h") {
+    if (layers.length === 1) {
+      translateLayer(layers[0], (m.w / 2) - items[0].cx, 0);
+    } else {
+      const minLeft = Math.min(...items.map(it => it.left));
+      const maxRight = Math.max(...items.map(it => it.right));
+      const targetCx = (minLeft + maxRight) / 2;
+      items.forEach(it => translateLayer(it.layer, targetCx - it.cx, 0));
+    }
+    handle9("[ALIGN] Tengah Horizontal Layar");
+  } else if (type === "right") {
+    if (layers.length === 1) {
+      translateLayer(layers[0], m.w - items[0].right, 0);
+    } else {
+      const maxRight = Math.max(...items.map(it => it.right));
+      items.forEach(it => translateLayer(it.layer, maxRight - it.right, 0));
+    }
+    handle9("[ALIGN] Rata Kanan Layar");
+  } else if (type === "top") {
+    if (layers.length === 1) {
+      translateLayer(layers[0], 0, -items[0].top);
+    } else {
+      const minTop = Math.min(...items.map(it => it.top));
+      items.forEach(it => translateLayer(it.layer, 0, minTop - it.top));
+    }
+    handle9("[ALIGN] Rata Atas Layar");
+  } else if (type === "center-v") {
+    if (layers.length === 1) {
+      translateLayer(layers[0], 0, (m.h / 2) - items[0].cy);
+    } else {
+      const minTop = Math.min(...items.map(it => it.top));
+      const maxBottom = Math.max(...items.map(it => it.bottom));
+      const targetCy = (minTop + maxBottom) / 2;
+      items.forEach(it => translateLayer(it.layer, 0, targetCy - it.cy));
+    }
+    handle9("[ALIGN] Tengah Vertikal Layar");
+  } else if (type === "bottom") {
+    if (layers.length === 1) {
+      translateLayer(layers[0], 0, m.h - items[0].bottom);
+    } else {
+      const maxBottom = Math.max(...items.map(it => it.bottom));
+      items.forEach(it => translateLayer(it.layer, 0, maxBottom - it.bottom));
+    }
+    handle9("[ALIGN] Rata Bawah Layar");
+  } else if (type === "distribute-h") {
+    if (layers.length <= 2) {
+      if (layers.length === 1) translateLayer(layers[0], (m.w / 2) - items[0].cx, 0);
+    } else {
+      const sorted = [...items].sort((a, b) => a.cx - b.cx);
+      const firstCx = sorted[0].cx;
+      const lastCx = sorted[sorted.length - 1].cx;
+      const step = (lastCx - firstCx) / (sorted.length - 1);
+      sorted.forEach((it, idx) => {
+        if (idx > 0 && idx < sorted.length - 1) {
+          const target = firstCx + idx * step;
+          translateLayer(it.layer, target - it.cx, 0);
+        }
+      });
+    }
+    handle9("[ALIGN] Distribusi Horizontal Layar");
+  } else if (type === "distribute-v") {
+    if (layers.length <= 2) {
+      if (layers.length === 1) translateLayer(layers[0], 0, (m.h / 2) - items[0].cy);
+    } else {
+      const sorted = [...items].sort((a, b) => a.cy - b.cy);
+      const firstCy = sorted[0].cy;
+      const lastCy = sorted[sorted.length - 1].cy;
+      const step = (lastCy - firstCy) / (sorted.length - 1);
+      sorted.forEach((it, idx) => {
+        if (idx > 0 && idx < sorted.length - 1) {
+          const target = firstCy + idx * step;
+          translateLayer(it.layer, 0, target - it.cy);
+        }
+      });
+    }
+    handle9("[ALIGN] Distribusi Vertikal Layar");
+  }
+
+  pushUndo(snap);
+  V = true;
+  val2 && val2.renderAt(H);
+  omScheduleSave();
+}
+function omMultiAlignTimeline(mode) {
+  if (!val) return;
+  const ids = omMulti.size ? omMultiIds() : [];
+  const layers = ids.length ? ids.map(omResolveLayer).filter(Boolean) : [omLayerCur()].filter(Boolean);
+  if (!layers.length) return handle9("[ALIGN] Pilih layer terlebih dahulu");
+  const m = omMeta();
+  const total = m.total || (val ? val.totalTime : 3000);
+  const snap = sceneSnapshot();
+
+  if (mode === "left") {
+    const minStart = Math.min(...layers.map(l => l.startTime || 0));
+    layers.forEach(l => {
+      const dur = (l.endTime != null ? l.endTime : total) - (l.startTime || 0);
+      l.startTime = minStart;
+      l.endTime = minStart + dur;
+    });
+    handle9("[TIMELINE] Rata Kiri Timeline (" + minStart + " ms)");
+  } else if (mode === "right") {
+    const maxEnd = Math.max(...layers.map(l => l.endTime != null ? l.endTime : total));
+    layers.forEach(l => {
+      const dur = (l.endTime != null ? l.endTime : total) - (l.startTime || 0);
+      l.endTime = maxEnd;
+      l.startTime = Math.max(0, maxEnd - dur);
+    });
+    handle9("[TIMELINE] Rata Kanan Timeline (" + maxEnd + " ms)");
+  } else if (mode === "distribute") {
+    if (layers.length <= 2) {
+      handle9("[TIMELINE] Distribusi memerlukan minimal 3 layer");
+      return;
+    }
+    const sorted = [...layers].sort((a, b) => (a.startTime || 0) - (b.startTime || 0));
+    const firstStart = sorted[0].startTime || 0;
+    const lastStart = sorted[sorted.length - 1].startTime || 0;
+    const step = (lastStart - firstStart) / (sorted.length - 1);
+    sorted.forEach((l, idx) => {
+      const dur = (l.endTime != null ? l.endTime : total) - (l.startTime || 0);
+      const newStart = Math.round(firstStart + idx * step);
+      l.startTime = newStart;
+      l.endTime = newStart + dur;
+    });
+    handle9("[TIMELINE] Distribusi Timeline Selesai");
+  }
+
+  pushUndo(snap);
+  V = true;
+  bind4();
+  val2 && val2.renderAt(H);
+  omScheduleSave();
+}
+function omUngroup(groupLayer) {
+  const g = groupLayer || omLayerCur();
+  if (!g || !get13(g)) return handle9("[GRUP] Pilih layer grup terlebih dahulu");
+  const par = findParentArray(g);
+  if (!par) return;
+  const snap = sceneSnapshot();
+  const children = (g.scene && g.scene.layers) || [];
+  const gStart = g.startTime || 0;
+  const idx = par.indexOf(g);
+  if (idx < 0) return;
+  par.splice(idx, 1);
+  children.forEach((c, i) => {
+    const cl = cloneLayerSafe(c);
+    cl.startTime = (cl.startTime || 0) + gStart;
+    if (cl.endTime != null) cl.endTime += gStart;
+    par.splice(idx + i, 0, cl);
+  });
+  pushUndo(snap), V = true;
+  handle9("[GRUP] Grup dibubarkan menjadi " + children.length + " layer");
+  bind4(), val2 && val2.renderAt(H);
+  apply13(null);
+}
+function omEnterGroup(groupLayer) {
+  const g = groupLayer || omLayerCur();
+  if (!g || !get13(g)) return;
+  compute13(g);
+  if (typeof window.omOnGroupStateChanged === "function") window.omOnGroupStateChanged(Te.length, join());
+}
+function omExitGroup() {
+  if (!Te.length) return;
+  render13();
+  if (typeof window.omOnGroupStateChanged === "function") window.omOnGroupStateChanged(Te.length, join());
+}
+function omMultiDelete() {
+  if (!val) return omMultiClear();
+  const ids = omMultiIds();
+  const layers = ids.map(id => omResolveLayer(id)).filter(Boolean);
+  if (!layers.length) return omMultiClear();
+  const snap = sceneSnapshot();
+  layers.forEach(l => {
+    const p = findParentArray(l);
+    if (p) p.splice(p.indexOf(l), 1);
+  });
+  pushUndo(snap), V = true, omMulti.clear();
+  handle9("[EDIT] " + layers.length + " layer dihapus");
+  omMultiRefresh();
+  val2 && val2.renderAt(H);
+  bind4();
+}
+function omBindMulti() {
+  if (omMultiBound) return;
+  omMultiBound = true;
+  omMultiRefreshStyles();
+  document.addEventListener("pointerdown", e => {
+    const label = e.target && e.target.closest && (e.target.closest(".tl-label") || e.target.closest(".tl-block"));
+    if (!label || !label.dataset || !label.dataset.key) return;
+    const id = label.dataset.key;
+    const rec = omMultiTrack = { id, x: e.clientX, y: e.clientY, moved: false };
+    clearTimeout(omMultiTimer);
+    omMultiTimer = setTimeout(() => {
+      const cur = omMultiTrack;
+      if (cur && cur.id === id && !cur.moved) {
+        omMultiSuppress = Date.now() + 1600;
+        omMultiToggle(id);
+      }
+    }, 420);
+  }, true);
+  document.addEventListener("pointermove", e => {
+    if (omMultiTrack && Math.abs(e.clientX - omMultiTrack.x) + Math.abs(e.clientY - omMultiTrack.y) > 6) omMultiTrack.moved = true;
+  }, true);
+  const cancelTrack = e => {
+    if (omMultiTrack) clearTimeout(omMultiTimer), omMultiTrack = null;
+  };
+  document.addEventListener("pointerup", cancelTrack, true);
+  document.addEventListener("pointercancel", cancelTrack, true);
+  document.addEventListener("click", e => {
+    if (Date.now() < omMultiSuppress) {
+      const eye = e.target && e.target.closest && (e.target.closest(".tl-eye") || e.target.closest(".tl-thumb"));
+      if (eye) {
+        e.preventDefault(), e.stopPropagation(), e.stopImmediatePropagation();
+      }
+    }
+    if (omMulti.size) {
+      if (e.target.closest("#omMultiBar") || e.target.closest("#am-navbar-select") || e.target.closest("#am-select-bottom-bar")) {
+        return;
+      }
+      const targetLabel = e.target.closest && (e.target.closest(".tl-label") || e.target.closest(".tl-block"));
+      if (targetLabel && targetLabel.dataset && targetLabel.dataset.key) {
+        e.preventDefault(), e.stopPropagation(), e.stopImmediatePropagation();
+        omMultiToggle(targetLabel.dataset.key);
+        return;
+      }
+      const insideTimeline = e.target.closest && (e.target.closest("#am-bottom-container") || e.target.closest("#pane-layer") || e.target.closest(".tl-timeline"));
+      if (!insideTimeline) {
+        omMultiClear();
+      }
+    }
+  }, true);
+  // Delete / Backspace hapus seleksi banyak
+  document.addEventListener("keydown", e => {
+    if (!omMulti.size) return;
+    const tgt = e.target, tn = tgt && tgt.tagName;
+    if (["INPUT", "SELECT", "TEXTAREA"].includes(tn) || tgt && tgt.isContentEditable) return;
+    if (e.key === "Delete" || e.key === "Backspace") {
+      e.preventDefault(), omMultiDelete();
+    } else if (e.key === "Escape") omMultiClear();
+  }, true);
+  document.addEventListener("keydown", e => { if (e.key === "Escape") omMultiClear(); }, true);
+}
+var omMultiBound = false;
+
+
+omBindMulti();
+
+
+
+
+
+setInterval(()=>{ if(document.querySelector("#pane-layer .tl-toolbar") && !document.getElementById("om-add") && typeof window.omInitAddButton==="function"){ try{window.omInitAddButton()}catch(e){} } },1200);
