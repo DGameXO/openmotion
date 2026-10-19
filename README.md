@@ -12,6 +12,8 @@ The primary objective of this project is to build a **native desktop port powere
 - **Desktop-First UI/UX:** Overhaul the interface—currently designed around mobile touch workflows—into a fully optimized desktop layout featuring dockable panels, wide timeline tracks, multi-window support, and dedicated keyboard/mouse workflows.
 - **Ecosystem & Compatibility:** Preserve full backward and forward compatibility with Alight Motion XML / AMFX preset formats to ensure seamless interoperability across mobile, web, and desktop.
 
+For detailed technical milestones and crate-level breakdown, see **[ROADMAP.md](ROADMAP.md)**.
+
 ---
 
 ## Current Status (Web Version)
